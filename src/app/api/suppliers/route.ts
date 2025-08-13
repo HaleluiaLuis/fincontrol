@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Verificar autenticação
+  const user = getAuthenticatedUser(request);
+  if (!user) {
+    return createUnauthorizedResponse();
+  }
+
   try {
     const suppliers = await prisma.supplier.findMany({
       orderBy: {
