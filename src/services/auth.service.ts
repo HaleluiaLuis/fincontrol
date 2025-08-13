@@ -71,7 +71,7 @@ export interface RegisterRequest {
 }
 
 export class AuthService {
-  private readonly baseEndpoint = '/api/auth';
+  private readonly baseEndpoint = '/auth';
   private user: User | null = null;
   private token: string | null = null;
 
