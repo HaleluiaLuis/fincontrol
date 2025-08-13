@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verify = useCallback(async () => {
     const res = await api<{ id:string; name:string; email:string; role:string; department?:string }>("/api/auth/verify");
-    if(res.ok && res.data){ setUser(res.data); }
+  if(res.ok && res.data){ setUser({ ...res.data, role: res.data.role?.toLowerCase() }); }
     setIsLoading(false);
   },[]);
 
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login: AuthContextType['login'] = async (email) => {
     const res = await api<{ id:string; name:string; email:string; role:string; department?:string }>("/api/auth/login", { method:'POST', json:{ email } });
     if(!res.ok || !res.data) return false;
-    setUser(res.data);
+  setUser({ ...res.data, role: res.data.role?.toLowerCase() });
     return true;
   };
 

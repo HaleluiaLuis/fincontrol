@@ -72,8 +72,9 @@ export async function middleware(req: NextRequest) {
 		return NextResponse.redirect(loginUrl);
 	}
 
-		// Verificação de role (MVP baseada em cookie fc_role). Futuro: assinar valor ou validar via DB.
-		const role = req.cookies.get('fc_role')?.value as Role | undefined;
+		// Verificação de role (MVP baseada em cookie fc_role). Normaliza para minúsculas para evitar mismatch com enums Prisma.
+		const rawRole = req.cookies.get('fc_role')?.value;
+		const role = rawRole ? rawRole.toLowerCase() as Role : undefined;
 		for (const pref of PROTECTED_PREFIXES) {
 			if(pathname === pref || pathname.startsWith(pref + '/')) {
 				const allowed = ROLE_REQUIREMENTS[pref];

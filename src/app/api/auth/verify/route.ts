@@ -14,5 +14,5 @@ export async function GET(){
 	if(!session) return NextResponse.json({ ok:false, stage:'not-found', error:'Sessão inválida' }, { status:401 });
 	if(session.expiresAt < new Date()) return NextResponse.json({ ok:false, stage:'expired', error:'Expirada' }, { status:401 });
 	if(session.revokedAt) return NextResponse.json({ ok:false, stage:'revoked', error:'Revogada' }, { status:401 });
-	return NextResponse.json({ ok:true, data: { id:session.user.id, name:session.user.name, email:session.user.email, role:session.user.role } });
+	return NextResponse.json({ ok:true, data: { id:session.user.id, name:session.user.name, email:session.user.email, role: session.user.role.toLowerCase() } });
 }

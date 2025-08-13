@@ -26,7 +26,8 @@ export async function POST(request: Request) {
 	await prisma.session.create({ data: { userId: user.id, token, expiresAt } });
 
 	// Resposta normalizada com chave 'data' para compatibilidade com wrapper api()
-	const res = NextResponse.json({ ok:true, data: { id:user.id, name:user.name, email:user.email, role:user.role, department:user.department } });
+	const normalizedRole = user.role.toLowerCase();
+	const res = NextResponse.json({ ok:true, data: { id:user.id, name:user.name, email:user.email, role: normalizedRole, department:user.department } });
 	res.cookies.set(COOKIE_NAME, token, {
 		httpOnly: true,
 		sameSite: 'lax',
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
 		maxAge: SESSION_HOURS * 60 * 60
 	});
 	// Cookie adicional com role para RBAC no middleware (MVP; reforçar com assinatura futuramente)
-	res.cookies.set('fc_role', user.role, {
+	res.cookies.set('fc_role', normalizedRole, {
 		sameSite: 'lax',
 		secure: process.env.NODE_ENV === 'production',
 		path: '/',
