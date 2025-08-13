@@ -219,3 +219,47 @@ html.dark .accent-purple { --accent-chip-bg:rgba(126,34,206,0.22); }
 html.dark .accent-orange { --accent-chip-bg:rgba(180,83,9,0.22); }
 html.dark .accent-indigo { --accent-chip-bg:rgba(67,56,202,0.22); }
 html.dark .accent-red { --accent-chip-bg:rgba(185,28,28,0.22); }
+
+/* ----------------------------- */
+/* Campos padrão (.field) melhor contraste acessível */
+/* ----------------------------- */
+.field {
+  width:100%;
+  border-radius:0.5rem;
+  padding:0.55rem 0.75rem;
+  font-size:0.875rem; /* text-sm */
+  line-height:1.25rem;
+  transition: background-color .25s, border-color .25s, box-shadow .25s, color .25s;
+  background: linear-gradient(#ffffff,#ffffff) padding-box, linear-gradient(145deg,rgba(99,102,241,0.35),rgba(99,102,241,0.05)) border-box;
+  border:1px solid var(--border-subtle);
+  color: var(--foreground-strong);
+  box-shadow:0 1px 1px rgba(0,0,0,0.03);
+}
+.field::placeholder { color: color-mix(in srgb, var(--foreground-muted) 65%, transparent); }
+.field:focus {
+  border-color: var(--color-primary-ring);
+  background: linear-gradient(#ffffff,#ffffff) padding-box, linear-gradient(145deg,rgba(99,102,241,0.55),rgba(99,102,241,0.08)) border-box;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-ring) 35%, transparent);
+}
+html.dark .field {
+  background: linear-gradient(#1e1f22,#1e1f22) padding-box, linear-gradient(145deg,rgba(99,102,241,0.35),rgba(99,102,241,0.08)) border-box;
+  border:1px solid rgba(255,255,255,0.14);
+  color: var(--foreground-strong);
+}
+html.dark .field:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.35);
+  background: linear-gradient(#25262a,#25262a) padding-box, linear-gradient(145deg,rgba(129,140,248,0.5),rgba(99,102,241,0.12)) border-box;
+}
+/* Estados de erro (utilizar adicionando aria-invalid="true" ou classe field-error) */
+.field[aria-invalid="true"], .field.field-error {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-danger) 55%, transparent);
+}
+html.dark .field[aria-invalid="true"], html.dark .field.field-error {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 2px rgba(239,68,68,0.5);
+}
+/* Desabilitado */
+.field:disabled { opacity:.65; cursor:not-allowed; }
+html.dark .field:disabled { background:#1a1b1e; }
