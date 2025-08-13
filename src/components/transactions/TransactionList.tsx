@@ -18,8 +18,11 @@ export function TransactionList({ transactions, categories, onEdit, onDelete }: 
     }).format(value);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (date: Date | string) => {
+    if (typeof date === 'string') {
+      return new Date(date).toLocaleDateString('pt-BR');
+    }
+    return date.toLocaleDateString('pt-BR');
   };
 
   const getCategoryName = (categoryId: string) => {
@@ -29,14 +32,14 @@ export function TransactionList({ transactions, categories, onEdit, onDelete }: 
 
   const getStatusBadge = (status: Transaction['status']) => {
     const statusConfig = {
-      pendente: 'bg-yellow-100 text-yellow-800',
-      confirmada: 'bg-green-100 text-green-800',
-      cancelada: 'bg-red-100 text-red-800',
+      PENDENTE: 'bg-yellow-100 text-yellow-800',
+      CONFIRMADA: 'bg-green-100 text-green-800',
+      CANCELADA: 'bg-red-100 text-red-800',
     };
 
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[status]}`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()}
       </span>
     );
   };
@@ -90,11 +93,11 @@ export function TransactionList({ transactions, categories, onEdit, onDelete }: 
                   {transaction.description}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {getCategoryName(transaction.category)}
+                  {getCategoryName(transaction.categoryId || '')}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <span className={transaction.type === 'receita' ? 'text-green-600' : 'text-red-600'}>
-                    {transaction.type === 'receita' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                  <span className={transaction.type === 'RECEITA' ? 'text-green-600' : 'text-red-600'}>
+                    {transaction.type === 'RECEITA' ? '+' : '-'} {formatCurrency(Number(transaction.amount))}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

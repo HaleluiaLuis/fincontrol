@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 
@@ -13,28 +13,38 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, title, subtitle, actions }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handler = () => {
+      setScrolled(el.scrollTop > 6);
+    };
+    handler();
+    el.addEventListener('scroll', handler, { passive: true });
+    return () => el.removeEventListener('scroll', handler);
+  }, []);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex overflow-hidden">
-      {/* Sidebar */}
+    <div className="h-screen overflow-hidden bg-gray-50 flex">
       <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} />
-      
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-0">
-        <Header 
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header
           title={title}
           subtitle={subtitle}
           onMenuToggle={toggleSidebar}
           actions={actions}
+          scrolled={scrolled}
         />
-        
-        {/* Page content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <main ref={scrollRef} className="flex-1 overflow-x-hidden overflow-y-auto">
+          {/* Container fluido com limites maiores em telas grandes para reduzir espaços vazios */}
+          <div className="w-full mx-auto px-3 sm:px-4 lg:px-6 2xl:px-10 py-6 md:py-8 max-w-screen-2xl">
             {children}
           </div>
         </main>

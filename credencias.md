@@ -1,0 +1,5 @@
+admin@ispb.edu        - senha: 123456 (Administrador)
+contratacao@ispb.edu  - senha: 123456 (Gabinete Contratação) 
+presidente@ispb.edu   - senha: 123456 (Presidente)
+apoio@ispb.edu        - senha: 123456 (Gabinete de Apoio)
+financas@ispb.edu     - senha: 123456 (Finanças)

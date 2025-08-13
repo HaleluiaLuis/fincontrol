@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FinancialSummaryCard } from '@/components/dashboard/FinancialSummaryCard';
-import { InvoicesSummaryCard } from '@/components/dashboard/InvoicesSummaryCard';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
-import { TransactionList } from '@/components/transactions/TransactionList';
+import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
+import { RoleBasedDashboard } from '@/components/dashboard/RoleBasedDashboard';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useInvoices } from '@/hooks/useInvoices';
 import { defaultCategories } from '@/data/mockData';
@@ -16,7 +17,6 @@ export default function Home() {
   const { 
     transactions, 
     addTransaction, 
-    deleteTransaction,
     getFinancialSummary 
   } = useTransactions();
 
@@ -27,79 +27,103 @@ export default function Home() {
   const financialSummary = getFinancialSummary(invoicesSummary);
 
   const headerActions = (
-    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+    <>
       <Link href="/faturas">
-        <Button variant="success" size="sm" className="w-full sm:w-auto text-xs sm:text-sm">
-          <span className="sm:hidden">📋 Faturas</span>
-          <span className="hidden sm:inline">📋 Gestão de Faturas</span>
+        <Button
+          variant="soft"
+          size="sm"
+          className="font-medium gap-1.5 !h-9 px-3 backdrop-blur-md"
+          iconLeft={<span className="text-base">📋</span>}
+        >
+          Gestão de Faturas
         </Button>
       </Link>
       <Button
         onClick={() => setShowForm(!showForm)}
-        variant={showForm ? "secondary" : "primary"}
+        variant={showForm ? 'soft' : 'primary'}
         size="sm"
-        className="w-full sm:w-auto text-xs sm:text-sm"
+        className="font-medium gap-1.5 !h-9 px-3"
+        iconLeft={showForm ? <span className="text-base">✕</span> : <span className="text-base">＋</span>}
       >
-        {showForm ? '✕ Fechar' : '+ Nova Transação'}
+        {showForm ? 'Fechar' : 'Nova Transação'}
       </Button>
-    </div>
+    </>
   );
 
+  // Secção de KPIs removida conforme solicitação
+
   return (
-    <MainLayout 
-      title="Dashboard Financeiro" 
-      subtitle="Visão geral do controle de custos do Instituto Superior Politécnico do Bie"
-      actions={headerActions}
-    >
-      {/* Financial Summary */}
+    <ProtectedRoute>
+      <MainLayout
+        title="Dashboard Financeiro"
+        subtitle="Visão geral do controle de custos do Instituto Superior Politécnico do Bie"
+        actions={headerActions}
+      >
+  {/* Secção de KPIs removida */}
+
       <FinancialSummaryCard summary={financialSummary} />
 
-      {/* Invoices Summary */}
-      <div className="mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-2 sm:space-y-0">
-          <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Resumo de Faturas</h2>
-            <p className="text-sm text-gray-600 hidden sm:block">Acompanhe o status das faturas em processamento</p>
-          </div>
-          <Link href="/faturas" className="inline-flex items-center justify-center px-3 sm:px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-            <span className="sm:hidden">Ver faturas</span>
-            <span className="hidden sm:inline">Ver todas as faturas</span>
-            <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </Link>
-        </div>
-        <InvoicesSummaryCard summary={invoicesSummary} />
-      </div>
+      {/* Dashboard baseado em perfil/role */}
+      <section className="mb-8">
+        <RoleBasedDashboard />
+      </section>
 
-      {/* Transaction Form */}
-      {showForm && (
-        <div className="mb-6 sm:mb-8">
-          <TransactionForm 
-            onSubmit={(transactionData) => {
-              addTransaction(transactionData);
-              setShowForm(false);
-            }}
-            onCancel={() => setShowForm(false)}
-            categories={defaultCategories}
-          />
+      {/* Resumo de Faturas (versão compacta) */}
+      <section className="surface p-6 rounded-xl mb-8">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-sm font-semibold tracking-wide text-gray-800 uppercase">Resumo de Faturas</h2>
+            <p className="text-xs text-gray-500 mt-1">Movimento e status atuais</p>
+          </div>
+          <Link href="/faturas" className="action-btn !h-8 px-3 text-[11px]">Ver todas</Link>
         </div>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-alt)] border border-[var(--border-subtle)]">
+            <div className="w-9 h-9 flex items-center justify-center rounded-md bg-amber-50 text-amber-600 text-sm">⏳</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">Pendentes</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-semibold text-gray-900 tabular-nums">{invoicesSummary.totalPendentes}</span>
+              </div>
+            </div>
+            <span className="chip chip-amber !text-[11px] !py-0.5">Em aprovação</span>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-alt)] border border-[var(--border-subtle)]">
+            <div className="w-9 h-9 flex items-center justify-center rounded-md bg-indigo-50 text-indigo-600 text-sm">🗂️</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">Aprovadas</p>
+              <span className="text-lg font-semibold text-gray-900 tabular-nums">{invoicesSummary.totalAprovadas}</span>
+            </div>
+            <span className="chip chip-indigo !text-[11px] !py-0.5">Prontas</span>
+          </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--surface-alt)] border border-[var(--border-subtle)]">
+            <div className="w-9 h-9 flex items-center justify-center rounded-md bg-green-50 text-green-600 text-sm">✅</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">Pagas</p>
+              <span className="text-lg font-semibold text-gray-900 tabular-nums">{invoicesSummary.totalPagas}</span>
+            </div>
+            <span className="chip chip-green !text-[11px] !py-0.5">Liquidadas</span>
+          </div>
+        </div>
+      </section>
+
+      {showForm && (
+        <section className="mb-6">
+                    <TransactionForm
+            onSubmit={(data) => {
+              addTransaction(data);
+            }}
+            onCancel={() => {}}
+          />
+        </section>
       )}
 
-      {/* Recent Transactions */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 space-y-1 sm:space-y-0">
-          <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Transações Recentes</h2>
-            <p className="text-sm text-gray-600 hidden sm:block">Últimas movimentações financeiras registradas</p>
-          </div>
-        </div>
-        <TransactionList 
-          transactions={transactions.slice(0, 10)} // Mostrar apenas as 10 mais recentes
-          categories={defaultCategories}
-          onDelete={deleteTransaction}
-        />
-      </div>
+      <RecentTransactions
+        transactions={transactions}
+        categories={defaultCategories}
+        limit={8}
+      />
     </MainLayout>
+    </ProtectedRoute>
   );
 }

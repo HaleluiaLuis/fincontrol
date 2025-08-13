@@ -1,24 +1,44 @@
 'use client';
 
 import { MainLayout } from '@/components/layout/MainLayout';
-import { useTransactions } from '@/hooks/useTransactions';
-import { useInvoices } from '@/hooks/useInvoices';
 import { Button } from '@/components/ui/Button';
+import { useState } from 'react';
 
 export default function RelatoriosPage() {
-  const { getTransactionsSummary } = useTransactions();
-  const { getInvoicesSummary } = useInvoices();
-  
-  const transactionsSummary = getTransactionsSummary();
-  const invoicesSummary = getInvoicesSummary();
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0,7));
+  const [search, setSearch] = useState('');
+
+  const reportDefinitions = [
+    { id: 'receitas_despesas', icon: '📊', label: 'Receitas x Despesas', accent: 'accent-blue', desc: 'Análise comparativa mensal de receitas e despesas' },
+    { id: 'fluxo_caixa', icon: '💰', label: 'Fluxo de Caixa', accent: 'accent-green', desc: 'Projeção e análise do fluxo de caixa mensal' },
+    { id: 'status_faturas', icon: '📋', label: 'Status das Faturas', accent: 'accent-purple', desc: 'Distribuição por status das faturas' },
+    { id: 'por_categoria', icon: '🏷️', label: 'Por Categoria', accent: 'accent-orange', desc: 'Gastos agrupados por categoria' },
+    { id: 'fornecedores', icon: '🏢', label: 'Fornecedores', accent: 'accent-indigo', desc: 'Pagamentos por fornecedor' },
+    { id: 'executivo', icon: '📈', label: 'Executivo', accent: 'accent-red', desc: 'Resumo executivo de métricas principais' }
+  ];
+
+  const visibleReports = selectedReport
+    ? reportDefinitions.filter(r => r.id === selectedReport)
+    : reportDefinitions.filter(r => r.label.toLowerCase().includes(search.toLowerCase()));
 
   const headerActions = (
     <>
-      <Button variant="secondary" size="sm">
-        📊 Exportar Dashboard
+      <Button
+        variant="soft"
+        size="sm"
+        iconLeft={<span className="text-base">📊</span>}
+        className="!h-9 px-3 gap-1.5 font-medium"
+      >
+        Exportar Dashboard
       </Button>
-      <Button variant="primary" size="sm">
-        📈 Relatório Personalizado
+      <Button
+        variant="primary"
+        size="sm"
+        iconLeft={<span className="text-base">📈</span>}
+        className="!h-9 px-3 gap-1.5 font-medium"
+      >
+        Relatório Personalizado
       </Button>
     </>
   );
@@ -29,187 +49,81 @@ export default function RelatoriosPage() {
       subtitle="Análises e relatórios detalhados do desempenho financeiro"
       actions={headerActions}
     >
-      {/* Resumo Executivo */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-        {/* Transações */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Resumo de Transações</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-              <span className="text-sm font-medium text-green-800">Total Receitas</span>
-              <span className="text-lg font-bold text-green-600">
-                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(transactionsSummary.totalReceitas)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-              <span className="text-sm font-medium text-red-800">Total Despesas</span>
-              <span className="text-lg font-bold text-red-600">
-                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(transactionsSummary.totalDespesas)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm font-medium text-blue-800">Saldo Atual</span>
-              <span className="text-lg font-bold text-blue-600">
-                {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(transactionsSummary.saldoAtual)}
-              </span>
-            </div>
+      {/* Filtros */}
+      <div className="mb-8 surface p-6 rounded-xl">
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-60">
+            <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1">Pesquisar</label>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 Filtrar relatórios..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1">Período</label>
+            <input
+              type="month"
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+          </div>
+          <div className="flex-1 min-w-60">
+            <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-600 mb-1">Selecionado</label>
+            <div className="chip chip-indigo !text-[10px]">{selectedReport ? reportDefinitions.find(r=>r.id===selectedReport)?.label : 'Todos'}</div>
           </div>
         </div>
-
-        {/* Faturas */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">📋 Resumo de Faturas</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg">
-              <span className="text-sm font-medium text-yellow-800">Pendentes</span>
-              <div className="text-right">
-                <div className="text-lg font-bold text-yellow-600">{invoicesSummary.totalPendentes}</div>
-                <div className="text-sm text-yellow-600">
-                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(invoicesSummary.valorPendente)}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm font-medium text-blue-800">Aprovadas</span>
-              <div className="text-right">
-                <div className="text-lg font-bold text-blue-600">{invoicesSummary.totalAprovadas}</div>
-                <div className="text-sm text-blue-600">
-                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(invoicesSummary.valorAprovado)}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-              <span className="text-sm font-medium text-green-800">Pagas</span>
-              <div className="text-right">
-                <div className="text-lg font-bold text-green-600">{invoicesSummary.totalPagas}</div>
-                <div className="text-sm text-green-600">
-                  {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(invoicesSummary.valorPago)}
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="mt-6 flex flex-wrap gap-2">
+          {reportDefinitions.map(r => (
+            <button
+              key={r.id}
+              onClick={() => setSelectedReport(prev => prev === r.id ? null : r.id)}
+              className={`chip ${r.id===selectedReport ? 'chip-indigo' : 'chip-blue'} cursor-pointer !text-[10px]`}
+            >
+              {r.icon} {r.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Relatórios Disponíveis */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {/* Relatório de Receitas e Despesas */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">📊 Receitas x Despesas</h4>
-            <div className="bg-blue-400 bg-opacity-30 rounded-full p-2">
-              📈
-            </div>
-          </div>
-          <p className="text-blue-100 text-sm mb-4">Análise comparativa mensal de receitas e despesas</p>
-          <Button variant="secondary" size="sm" className="w-full">
-            Gerar Relatório
-          </Button>
+      {/* Lista de Relatórios / Resultados */}
+      <div className="surface-elevated overflow-hidden">
+        <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--surface-alt)]">
+          <h3 className="text-sm font-semibold tracking-wide text-gray-800 dark:text-gray-100 uppercase">Relatórios Disponíveis</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Gere e visualize resultados diretamente abaixo</p>
         </div>
-
-        {/* Relatório de Fluxo de Caixa */}
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">💰 Fluxo de Caixa</h4>
-            <div className="bg-green-400 bg-opacity-30 rounded-full p-2">
-              💸
+        <div className="grid gap-px bg-[var(--border-subtle)] md:grid-cols-2 lg:grid-cols-3">
+          {visibleReports.map(r => (
+            <div key={r.id} className="bg-white p-5 flex flex-col justify-between row-zebra">
+              <div>
+                <h4 className="font-semibold text-gray-800 flex items-center gap-2 mb-1 text-sm"><span className="text-base">{r.icon}</span> {r.label}</h4>
+                <p className="text-xs text-gray-600 leading-relaxed line-clamp-3">{r.desc}</p>
+              </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => alert(`Gerando relatório: ${r.label} (${period})`)}
+                  className="action-btn !h-8 px-3 text-[11px] w-full"
+                >Gerar</button>
+              </div>
             </div>
-          </div>
-          <p className="text-green-100 text-sm mb-4">Projeção e análise do fluxo de caixa mensal</p>
-          <Button variant="secondary" size="sm" className="w-full">
-            Gerar Relatório
-          </Button>
-        </div>
-
-        {/* Relatório de Faturas */}
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">📋 Status das Faturas</h4>
-            <div className="bg-purple-400 bg-opacity-30 rounded-full p-2">
-              📄
-            </div>
-          </div>
-          <p className="text-purple-100 text-sm mb-4">Relatório detalhado do status das faturas</p>
-          <Button variant="secondary" size="sm" className="w-full">
-            Gerar Relatório
-          </Button>
-        </div>
-
-        {/* Relatório por Categoria */}
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">🏷️ Por Categoria</h4>
-            <div className="bg-orange-400 bg-opacity-30 rounded-full p-2">
-              📊
-            </div>
-          </div>
-          <p className="text-orange-100 text-sm mb-4">Análise de gastos por categoria de despesa</p>
-          <Button variant="secondary" size="sm" className="w-full">
-            Gerar Relatório
-          </Button>
-        </div>
-
-        {/* Relatório de Fornecedores */}
-        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">🏢 Fornecedores</h4>
-            <div className="bg-indigo-400 bg-opacity-30 rounded-full p-2">
-              👥
-            </div>
-          </div>
-          <p className="text-indigo-100 text-sm mb-4">Relatório de pagamentos por fornecedor</p>
-          <Button variant="secondary" size="sm" className="w-full">
-            Gerar Relatório
-          </Button>
-        </div>
-
-        {/* Relatório Executivo */}
-        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-shadow cursor-pointer">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold">📈 Executivo</h4>
-            <div className="bg-red-400 bg-opacity-30 rounded-full p-2">
-              👔
-            </div>
-          </div>
-          <p className="text-red-100 text-sm mb-4">Relatório executivo com métricas principais</p>
-          <Button variant="secondary" size="sm" className="w-full">
-            Gerar Relatório
-          </Button>
+          ))}
         </div>
       </div>
 
-      {/* Gráficos e Análises */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">📊 Análises Visuais</h3>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Placeholder para gráfico de pizza - categorias */}
-          <div className="text-center">
-            <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-              <div className="text-gray-400">
-                <div className="text-4xl mb-2">📊</div>
-                <p className="text-sm">Gráfico de Despesas por Categoria</p>
-                <p className="text-xs text-gray-500 mt-1">Em desenvolvimento</p>
-              </div>
-            </div>
-            <h4 className="font-semibold text-gray-900">Distribuição por Categoria</h4>
-            <p className="text-sm text-gray-600">Análise percentual dos gastos por categoria</p>
-          </div>
-
-          {/* Placeholder para gráfico de linha - tendência */}
-          <div className="text-center">
-            <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-              <div className="text-gray-400">
-                <div className="text-4xl mb-2">📈</div>
-                <p className="text-sm">Tendência Mensal</p>
-                <p className="text-xs text-gray-500 mt-1">Em desenvolvimento</p>
-              </div>
-            </div>
-            <h4 className="font-semibold text-gray-900">Evolução Temporal</h4>
-            <p className="text-sm text-gray-600">Tendência de receitas e despesas ao longo do tempo</p>
+      {/* Placeholder de visualização (será alimentado após gerar) */}
+      {selectedReport && (
+        <div className="mt-10 surface p-6 rounded-xl">
+          <h4 className="text-sm font-semibold tracking-wide text-gray-800 dark:text-gray-100 uppercase mb-4">Visualização - {reportDefinitions.find(r=>r.id===selectedReport)?.label}</h4>
+          <div className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+            (Área reservada para gráficos / tabelas detalhadas do relatório selecionado para o período {period}).
           </div>
         </div>
-      </div>
+      )}
+
+  {/* Seção de análises visuais removida conforme solicitação anterior - agora substituída pelo preview */}
     </MainLayout>
   );
 }

@@ -1,0 +1,340 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  GABINETE_CONTRATACAO
+  PRESIDENTE
+  GABINETE_APOIO
+  FINANCAS
+  ADMIN
+  USER
+  VIEWER
+}
+
+enum RequestStatus {
+  PENDENTE                 // Solicitação criada
+  EM_VALIDACAO            // Gabinete Contratação analisando
+  PENDENTE_PRESIDENTE     // Aguardando autorização presidencial
+  AUTORIZADA              // Presidente autorizou
+  REJEITADA               // Rejeitada em qualquer etapa
+  REGISTRADA              // Gabinete Apoio registrou fatura
+  PENDENTE_PAGAMENTO      // Enviada para Finanças
+  PAGA                    // Pagamento efetuado
+  CANCELADA               // Cancelada
+}
+
+enum WorkflowStep {
+  GABINETE_CONTRATACAO
+  PRESIDENTE
+  GABINETE_APOIO
+  FINANCAS
+  CONCLUIDO
+}
+
+enum ApprovalAction {
+  APROVADO
+  REJEITADO
+  SOLICITADO_CORRECAO
+  ENCAMINHADO
+}
+
+enum TransactionType {
+  RECEITA
+  DESPESA
+}
+
+enum TransactionStatus {
+  PENDENTE
+  CONFIRMADA
+  CANCELADA
+}
+
+enum PaymentMethod {
+  TRANSFERENCIA_BANCARIA
+  CHEQUE
+  NUMERARIO
+  PIX
+  OUTROS
+}
+
+enum SupplierStatus {
+  ATIVO
+  INATIVO
+  PENDENTE
+  BLOQUEADO
+}
+
+enum SupplierType {
+  PRESTADOR_SERVICOS
+  FORNECEDOR_PRODUTOS
+  PESSOA_FISICA
+  PESSOA_JURIDICA
+}
+
+// Modelos principais
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String?  // Para autenticação futura
+  role        UserRole
+  department  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  createdRequests     PaymentRequest[] @relation("RequestCreatedBy")
+  approvals           Approval[]
+  createdTransactions Transaction[]
+  registeredInvoices  Invoice[]        @relation("InvoiceRegisteredBy")
+  processedPayments   Payment[]        @relation("PaymentProcessedBy")
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String          @id @default(cuid())
+  name        String
+  type        TransactionType
+  color       String          @default("#6366f1")
+  description String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+
+  // Relacionamentos  
+  transactions     Transaction[]
+  paymentRequests  PaymentRequest[]
+  invoices         Invoice[]
+
+  @@map("categories")
+}
+
+model Supplier {
+  id             String         @id @default(cuid())
+  name           String
+  taxId          String         @unique // NIF
+  email          String?
+  phone          String?
+  address        String?
+  bankAccount    String?
+  supplierType   SupplierType   @default(PESSOA_JURIDICA)
+  status         SupplierStatus @default(ATIVO)
+  
+  // Dados adicionais
+  contactPerson  String?
+  website        String?
+  notes          String?
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relacionamentos
+  paymentRequests PaymentRequest[]
+  invoices        Invoice[]
+  transactions    Transaction[]
+
+  @@map("suppliers")
+}
+
+model PaymentRequest {
+  id              String        @id @default(cuid())
+  requestNumber   String        @unique @default(cuid()) // Numeração automática
+  
+  // Dados básicos
+  supplierId      String
+  categoryId      String
+  description     String
+  amount          Decimal       @db.Decimal(12,2)
+  
+  // Datas
+  requestDate     DateTime      @default(now())
+  serviceDate     DateTime?     // Data do serviço prestado
+  dueDate         DateTime?     // Data limite para pagamento
+  
+  // Workflow
+  status          RequestStatus @default(PENDENTE)
+  currentStep     WorkflowStep  @default(GABINETE_CONTRATACAO)
+  
+  // Documentos e anexos
+  documents       Json?         // Array de URLs/paths dos documentos
+  contractRef     String?       // Referência do contrato
+  
+  // Rastreabilidade
+  createdById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relacionamentos
+  supplier        Supplier      @relation(fields: [supplierId], references: [id])
+  category        Category      @relation(fields: [categoryId], references: [id])
+  createdBy       User          @relation("RequestCreatedBy", fields: [createdById], references: [id])
+  approvals       Approval[]
+  invoice         Invoice?      // Uma solicitação pode gerar uma fatura
+
+  @@map("payment_requests")
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique // Numeração sequencial
+  
+  // Vinculação com solicitação
+  paymentRequestId String?      @unique
+  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  
+  // Dados da fatura (podem diferir da solicitação original)
+  supplierId      String
+  categoryId      String
+  description     String
+  amount          Decimal       @db.Decimal(12,2)
+  
+  // Datas
+  issueDate       DateTime      // Data de emissão da fatura
+  serviceDate     DateTime      // Data do serviço
+  dueDate         DateTime      // Vencimento
+  
+  // Documentos
+  attachments     Json?         // PDFs, imagens da fatura
+  
+  // Registro pelo Gabinete de Apoio
+  registeredAt    DateTime      @default(now())
+  registeredById  String
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relacionamentos
+  supplier        Supplier      @relation(fields: [supplierId], references: [id])
+  category        Category      @relation(fields: [categoryId], references: [id])
+  registeredBy    User          @relation("InvoiceRegisteredBy", fields: [registeredById], references: [id])
+  payment         Payment?      // Uma fatura pode ter um pagamento
+
+  @@map("invoices")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  
+  // Vinculação com fatura
+  invoiceId       String        @unique
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+  
+  // Dados do pagamento
+  amount          Decimal       @db.Decimal(12,2)
+  paidAt          DateTime
+  method          PaymentMethod @default(TRANSFERENCIA_BANCARIA)
+  reference       String?       // Número do comprovante, cheque, etc.
+  
+  // Processamento
+  processedById   String
+  processedBy     User          @relation("PaymentProcessedBy", fields: [processedById], references: [id])
+  
+  // Metadados
+  bankAccount     String?       // Conta de origem
+  notes           String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model Approval {
+  id              String         @id @default(cuid())
+  
+  // Vinculação
+  paymentRequestId String
+  paymentRequest   PaymentRequest @relation(fields: [paymentRequestId], references: [id])
+  
+  // Dados da aprovação
+  step            WorkflowStep
+  action          ApprovalAction
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  
+  // Detalhes
+  comments        String?
+  attachments     Json?          // Documentos adicionais se necessário
+  
+  timestamp       DateTime       @default(now())
+
+  @@map("approvals")
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  type        TransactionType
+  description String
+  amount      Decimal           @db.Decimal(12,2)
+  date        DateTime
+  status      TransactionStatus @default(CONFIRMADA)
+  
+  // Relacionamentos opcionais
+  categoryId  String?
+  category    Category?         @relation(fields: [categoryId], references: [id])
+  supplierId  String?
+  supplier    Supplier?         @relation(fields: [supplierId], references: [id])
+  
+  // Rastreabilidade
+  createdById String?
+  createdBy   User?             @relation(fields: [createdById], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("transactions")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  
+  type      String    // 'payment_request_created', 'approval_needed', etc.
+  title     String
+  message   String
+  payload   Json?     // Dados adicionais
+  
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  
+  // Ação realizada
+  action    String    // 'CREATE', 'UPDATE', 'DELETE', 'APPROVE', etc.
+  entity    String    // 'PaymentRequest', 'Invoice', etc.
+  entityId  String    // ID do registro afetado
+  
+  // Usuário (opcional - pode ser sistema)
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+  
+  // Metadados
+  oldData   Json?     // Estado anterior
+  newData   Json?     // Novo estado
+  metadata  Json?     // Informações adicionais
+  
+  createdAt DateTime  @default(now())
+  
+  // Relacionamentos para facilitar queries (usando IDs diferentes ou removendo alguns)
+  // Nota: Como entityId pode referenciar diferentes entidades, mantemos apenas alguns relacionamentos específicos
+  // para evitar conflitos de constraint. Para queries complexas, usar entityId diretamente.
+
+  @@map("audit_logs")
+}

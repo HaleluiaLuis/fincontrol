@@ -1,188 +1,137 @@
 'use client';
 
 import { MainLayout } from '@/components/layout/MainLayout';
-import { mockSuppliers } from '@/data/mockData';
-import { Button } from '@/components/ui/Button';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { SuppliersProvider, useSuppliers } from '@/contexts/SuppliersContext';
+import { SupplierFilters } from '@/components/suppliers/SupplierFilters';
+import { SupplierList } from '@/components/suppliers/SupplierList';
+import { SuccessNotification } from '@/components/suppliers/SuccessNotification';
+import { Supplier } from '@/types/supplier';
+import { PlusIcon, ChartBarIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { Suspense } from 'react';
 
-export default function FornecedoresPage() {
-  const headerActions = (
-    <>
-      <Button variant="secondary" size="sm">
-        📤 Exportar Lista
-      </Button>
-      <Button variant="primary" size="sm">
-        + Novo Fornecedor
-      </Button>
-    </>
-  );
+function SupplierStats() {
+  const { getStats } = useSuppliers();
+  const stats = getStats();
+
+  const statCards = [
+    {
+      title: 'Total de Fornecedores',
+      value: stats.total,
+      icon: ChartBarIcon,
+      color: 'text-blue-600'
+    },
+    {
+      title: 'Fornecedores Ativos',
+      value: stats.active,
+      icon: ChartBarIcon,
+      color: 'text-green-600'
+    },
+    {
+      title: 'Aguardando Aprovação',
+      value: stats.pending,
+      icon: ChartBarIcon,
+      color: 'text-yellow-600'
+    },
+    {
+      title: 'Contratos Expirando',
+      value: stats.contractsExpiringSoon,
+      icon: DocumentTextIcon,
+      color: 'text-red-600'
+    }
+  ];
 
   return (
-    <MainLayout 
-      title="Gestão de Fornecedores" 
-      subtitle="Cadastro e controle de fornecedores e prestadores de serviços"
-      actions={headerActions}
-    >
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm font-medium">Total Fornecedores</p>
-              <p className="text-2xl font-bold">{mockSuppliers.length}</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      {statCards.map((stat, index) => (
+        <div key={index} className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <stat.icon className={`h-8 w-8 ${stat.color}`} />
             </div>
-            <div className="bg-blue-400 bg-opacity-30 rounded-full p-3">
-              🏢
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm font-medium">Fornecedores Ativos</p>
-              <p className="text-2xl font-bold">{mockSuppliers.filter(s => s.status === 'ativo').length}</p>
-            </div>
-            <div className="bg-green-400 bg-opacity-30 rounded-full p-3">
-              ✅
+            <div className="ml-5 w-0 flex-1">
+              <dl>
+                <dt className="text-sm font-medium text-gray-500 truncate">
+                  {stat.title}
+                </dt>
+                <dd className="text-lg font-medium text-gray-900">
+                  {stat.value}
+                </dd>
+              </dl>
             </div>
           </div>
         </div>
+      ))}
+    </div>
+  );
+}
 
-        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-yellow-100 text-sm font-medium">Aguardando Aprovação</p>
-              <p className="text-2xl font-bold">{mockSuppliers.filter(s => s.status === 'pendente').length}</p>
-            </div>
-            <div className="bg-yellow-400 bg-opacity-30 rounded-full p-3">
-              ⏳
-            </div>
-          </div>
-        </div>
+function SupplierPageContent() {
+  const { filteredSuppliers } = useSuppliers();
 
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm font-medium">Contratos Ativos</p>
-              <p className="text-2xl font-bold">12</p>
-            </div>
-            <div className="bg-purple-400 bg-opacity-30 rounded-full p-3">
-              📋
-            </div>
-          </div>
-        </div>
-      </div>
+  const handleEditSupplier = (supplier: Supplier) => {
+    console.log('Edit supplier:', supplier);
+    // TODO: Abrir modal de edição ou navegar para página de edição
+  };
 
-      {/* Filtros e Pesquisa */}
-      <div className="mb-8 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex-1 min-w-64">
-            <input
-              type="text"
-              placeholder="🔍 Pesquisar fornecedores..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div className="flex gap-2">
-            <select defaultValue="" className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-              <option value="">Todos os status</option>
-              <option value="ativo">Ativo</option>
-              <option value="inativo">Inativo</option>
-              <option value="pendente">Pendente</option>
-            </select>
-            <select defaultValue="" className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-              <option value="">Todas as categorias</option>
-              <option value="servicos">Serviços</option>
-              <option value="materiais">Materiais</option>
-              <option value="equipamentos">Equipamentos</option>
-            </select>
-          </div>
-        </div>
-      </div>
+  return (
+    <div className="space-y-6">
+      {/* Notificação de sucesso */}
+      <Suspense fallback={null}>
+        <SuccessNotification />
+      </Suspense>
 
-      {/* Lista de Fornecedores */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">🏢 Lista de Fornecedores</h3>
-          <p className="text-sm text-gray-600 mt-1">
-            Cadastro completo de fornecedores e prestadores de serviços
+      {/* Estatísticas */}
+      <SupplierStats />
+
+      {/* Filtros */}
+      <SupplierFilters />
+
+      {/* Header da lista */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-medium text-gray-900">
+            Fornecedores ({filteredSuppliers.length})
+          </h2>
+          <p className="text-sm text-gray-500">
+            Gerencie todos os fornecedores da instituição
           </p>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fornecedor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contato
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Categoria
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {mockSuppliers.map((supplier, index) => (
-                <tr key={supplier.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                          {supplier.name.charAt(0)}
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
-                        <div className="text-sm text-gray-500">{supplier.taxId}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">{supplier.contact.email}</div>
-                    <div className="text-sm text-gray-500">{supplier.contact.phone}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      Serviços Gerais
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      supplier.status === 'ativo' 
-                        ? 'bg-green-100 text-green-800' 
-                        : supplier.status === 'pendente'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {supplier.status === 'ativo' ? '✅ Ativo' : 
-                       supplier.status === 'pendente' ? '⏳ Pendente' : '❌ Inativo'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                    <div className="flex justify-center space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors">
-                        👁️ Ver
-                      </button>
-                      <button className="text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-lg transition-colors">
-                        ✏️ Editar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        
+        <div className="flex space-x-3">
+          <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            <DocumentTextIcon className="h-4 w-4 mr-2" />
+            Exportar
+          </button>
+          
+          <Link
+            href="/fornecedores/novo"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Novo Fornecedor
+          </Link>
         </div>
       </div>
-    </MainLayout>
+
+      {/* Lista de fornecedores */}
+      <SupplierList onEdit={handleEditSupplier} />
+    </div>
+  );
+}
+
+export default function FornecedoresPage() {
+  return (
+    <ProtectedRoute requiredPermissions={['suppliers.read']}>
+      <SuppliersProvider>
+        <MainLayout
+          title="Fornecedores"
+          subtitle="Gestão completa de fornecedores e prestadores de serviços"
+        >
+          <SupplierPageContent />
+        </MainLayout>
+      </SuppliersProvider>
+    </ProtectedRoute>
   );
 }

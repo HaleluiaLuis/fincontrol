@@ -1,198 +1,350 @@
 'use client';
 
 import { useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { InvoicesSummaryCard } from '@/components/dashboard/InvoicesSummaryCard';
-import { InvoiceList } from '@/components/invoices/InvoiceList';
-import { WorkflowTracker } from '@/components/invoices/WorkflowTracker';
-import { useInvoices } from '@/hooks/useInvoices';
-import { mockSuppliers, defaultCategories } from '@/data/mockData';
-import { Invoice } from '@/types';
+import { useRouter } from 'next/navigation';
+import { useInvoices } from '@/contexts/InvoicesContext';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { InvoiceStatus } from '@/types/invoice';
+import { 
+  Plus, 
+  FileText, 
+  Clock, 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle,
+  DollarSign,
+  Building,
+  Calendar,
+  Eye
+} from 'lucide-react';
 
-export default function FaturasPage() {
-  const { 
-    invoices, 
-    approveInvoice, 
-    rejectInvoice,
-    getInvoicesSummary,
-    getOverdueInvoices
-  } = useInvoices();
-
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [currentUserRole] = useState('administrador'); // Simulando usuário logado
-  
-  const invoicesSummary = getInvoicesSummary();
-  const overdueInvoices = getOverdueInvoices();
-
-  const handleViewDetails = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setShowModal(true);
+// Componente para estatísticas
+function StatsCard({ 
+  title, 
+  value, 
+  icon: Icon, 
+  color = 'blue',
+  description 
+}: {
+  title: string;
+  value: string | number;
+  icon: React.ElementType;
+  color?: string;
+  description?: string;
+}) {
+  const colorClasses = {
+    blue: 'text-blue-600 bg-blue-50',
+    green: 'text-green-600 bg-green-50',
+    red: 'text-red-600 bg-red-50',
+    orange: 'text-orange-600 bg-orange-50',
+    purple: 'text-purple-600 bg-purple-50'
   };
-
-  const handleApprove = (invoiceId: string) => {
-    // Simular dados do usuário atual
-    approveInvoice(invoiceId, 'user-001', 'Usuário Atual', 'Aprovado via sistema');
-  };
-
-  const handleReject = (invoiceId: string, comments: string) => {
-    // Simular dados do usuário atual
-    rejectInvoice(invoiceId, 'user-001', 'Usuário Atual', comments);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedInvoice(null);
-  };
-
-  const headerActions = (
-    <>
-      <Button variant="secondary" size="sm">
-        📤 Exportar Relatório
-      </Button>
-      <Button variant="primary" size="sm">
-        + Nova Fatura
-      </Button>
-    </>
-  );
 
   return (
-    <MainLayout 
-      title="Gestão de Faturas" 
-      subtitle="Sistema de controle de faturas com fluxo hierárquico de aprovação"
-      actions={headerActions}
-    >
-      {/* Summary Cards */}
-      <InvoicesSummaryCard summary={invoicesSummary} />
+    <Card className="p-6 hover:shadow-lg transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
+          {description && (
+            <p className="text-sm text-gray-500 mt-1">{description}</p>
+          )}
+        </div>
+        <div className={`p-3 rounded-full ${colorClasses[color as keyof typeof colorClasses] || colorClasses.blue}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+      </div>
+    </Card>
+  );
+}
 
-      {/* Alertas de Faturas Vencidas */}
-      {overdueInvoices.length > 0 && (
-        <div className="mb-8 bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl p-6 shadow-sm">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="h-6 w-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
+// Componente para lista de faturas
+function InvoicesList() {
+  const { filteredInvoices, canUserValidate } = useInvoices();
+  const router = useRouter();
+
+  const getStatusInfo = (status: InvoiceStatus) => {
+    switch (status) {
+      case 'RASCUNHO':
+        return { color: 'bg-gray-100 text-gray-800', icon: FileText, text: 'Rascunho' };
+      case 'ENVIADA':
+        return { color: 'bg-blue-100 text-blue-800', icon: Clock, text: 'Enviada' };
+      case 'RECEBIDA':
+        return { color: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Recebida' };
+      case 'EM_VALIDACAO':
+        return { color: 'bg-orange-100 text-orange-800', icon: Clock, text: 'Em Validação' };
+      case 'VALIDADA':
+        return { color: 'bg-purple-100 text-purple-800', icon: CheckCircle, text: 'Validada' };
+      case 'APROVADA_PAGAMENTO':
+        return { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle, text: 'Aprovada Pagamento' };
+      case 'PAGA':
+        return { color: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Paga' };
+      case 'VENCIDA':
+        return { color: 'bg-red-100 text-red-800', icon: AlertTriangle, text: 'Vencida' };
+      case 'CONTESTADA':
+        return { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Contestada' };
+      case 'CANCELADA':
+        return { color: 'bg-gray-100 text-gray-800', icon: XCircle, text: 'Cancelada' };
+      default:
+        return { color: 'bg-gray-100 text-gray-800', icon: FileText, text: status };
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('pt-AO', {
+      style: 'currency',
+      currency: 'AOA'
+    }).format(amount);
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-AO');
+  };
+
+  if (filteredInvoices.length === 0) {
+    return (
+      <Card className="p-8 text-center">
+        <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">
+          Nenhuma fatura encontrada
+        </h3>
+        <p className="text-gray-600 mb-6">
+          As faturas aparecerão aqui quando forem registradas
+        </p>
+        <Button 
+          onClick={() => router.push('/faturas/nova')}
+          className="inline-flex items-center"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Fatura
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {filteredInvoices.map((invoice) => {
+        const statusInfo = getStatusInfo(invoice.status);
+        const StatusIcon = statusInfo.icon;
+        const canValidate = canUserValidate();
+        const isOverdue = invoice.isOverdue;
+        
+        return (
+          <div 
+            key={invoice.id} 
+            className="p-6 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-green-500 bg-white rounded-lg border border-gray-200"
+            onClick={() => router.push(`/faturas/${invoice.id}`)}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {invoice.invoiceNumber}
+                  </h3>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                    <StatusIcon className="h-3 w-3 mr-1" />
+                    {statusInfo.text}
+                  </span>
+                  {canValidate && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Ação Requerida
+                    </span>
+                  )}
+                  {isOverdue && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Vencida
+                    </span>
+                  )}
+                </div>
+                
+                {invoice.description && (
+                  <p className="text-gray-600 mb-3">
+                    {invoice.description}
+                  </p>
+                )}
+                
+                <div className="flex items-center gap-6 text-sm text-gray-500">
+                  <span className="flex items-center">
+                    <Building className="h-4 w-4 mr-1" />
+                    {invoice.supplierName}
+                  </span>
+                  <span className="flex items-center">
+                    <Calendar className="h-4 w-4 mr-1" />
+                    Emissão: {formatDate(invoice.issueDate)}
+                  </span>
+                  <span className="flex items-center">
+                    <Clock className="h-4 w-4 mr-1" />
+                    Vencimento: {formatDate(invoice.dueDate)}
+                  </span>
+                  {invoice.supplierInvoiceNumber && (
+                    <span>
+                      <span className="font-medium">N° Fornecedor:</span> {invoice.supplierInvoiceNumber}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="ml-4 flex-1">
-              <h3 className="text-lg font-semibold text-red-800 mb-1">
-                ⚠️ Atenção: {overdueInvoices.length} fatura(s) vencida(s)
-              </h3>
-              <div className="text-sm text-red-700">
-                <p className="mb-2">
-                  Há faturas que já passaram da data de vencimento. 
-                  Verifique e processe com urgência para evitar penalidades.
-                </p>
-                <div className="flex space-x-4">
-                  <Button variant="danger" size="sm">
-                    Ver Faturas Vencidas
-                  </Button>
-                  <Button variant="secondary" size="sm">
-                    Gerar Relatório
-                  </Button>
+              
+              <div className="ml-4 text-right">
+                <div className="text-2xl font-bold text-gray-900 mb-1">
+                  {formatCurrency(invoice.totalAmount)}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                    invoice.type === 'SERVICO' 
+                      ? 'bg-blue-100 text-blue-800'
+                      : invoice.type === 'PRODUTO'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-purple-100 text-purple-800'
+                  }`}>
+                    {invoice.type}
+                  </span>
                 </div>
               </div>
             </div>
+            
+            {invoice.publicNotes && (
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Observações:</span> {invoice.publicNotes}
+                </p>
+              </div>
+            )}
+            
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {invoice.paymentRequestId && (
+                  <span className="text-sm text-gray-500">
+                    Solicitação: #{invoice.paymentRequestId}
+                  </span>
+                )}
+                {invoice.contractNumber && (
+                  <span className="text-sm text-gray-500">
+                    Contrato: {invoice.contractNumber}
+                  </span>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/faturas/${invoice.id}`);
+                }}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Ver Detalhes
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function FaturasPage() {
+  const { getStats, loading, refreshInvoices } = useInvoices();
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const stats = getStats();
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshInvoices();
+    setRefreshing(false);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('pt-AO', {
+      style: 'currency',
+      currency: 'AOA'
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-40 bg-gray-200 rounded"></div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Gestão de Faturas</h1>
+          <p className="mt-2 text-gray-600">
+            Controle e processamento de todas as faturas
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button 
+            variant="secondary" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
+          </Button>
+          <Button onClick={() => router.push('/faturas/nova')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Fatura
+          </Button>
+        </div>
+      </div>
+
+      {/* Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatsCard
+          title="Total de Faturas"
+          value={stats.total}
+          icon={FileText}
+          color="blue"
+          description="Todas as faturas registradas"
+        />
+        <StatsCard
+          title="Pendente Validação"
+          value={stats.pendingValidation}
+          icon={Clock}
+          color="orange"
+          description="Aguardando processamento"
+        />
+        <StatsCard
+          title="Valor Total"
+          value={formatCurrency(stats.totalAmount)}
+          icon={DollarSign}
+          color="green"
+          description={`Pago: ${formatCurrency(stats.paidAmount)}`}
+        />
+        <StatsCard
+          title="Vencidas"
+          value={stats.overdueInvoices}
+          icon={AlertTriangle}
+          color="red"
+          description={formatCurrency(stats.overdueAmount)}
+        />
+      </div>
 
       {/* Lista de Faturas */}
-      <InvoiceList 
-        invoices={invoices}
-        suppliers={mockSuppliers}
-        categories={defaultCategories}
-        onViewDetails={handleViewDetails}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        currentUserRole={currentUserRole}
-      />
-
-      {/* Modal de Detalhes */}
-      {showModal && selectedInvoice && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-8 border w-11/12 md:w-4/5 lg:w-3/5 shadow-2xl rounded-2xl bg-white">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">
-                  Detalhes da Fatura: {selectedInvoice.invoiceNumber}
-                </h3>
-                <p className="text-gray-600 mt-1">Informações completas e fluxo de aprovação</p>
-              </div>
-              <button
-                onClick={closeModal}
-                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Informações da Fatura */}
-            <div className="mb-8 bg-gradient-to-r from-gray-50 to-blue-50 p-6 rounded-xl border border-gray-200">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">📋 Informações da Fatura</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-1">Fornecedor</p>
-                  <p className="text-base font-semibold text-gray-900">
-                    {mockSuppliers.find(s => s.id === selectedInvoice.supplierId)?.name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-1">Valor</p>
-                  <p className="text-xl font-bold text-green-600">
-                    {new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(selectedInvoice.amount)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-1">Data de Vencimento</p>
-                  <p className="text-base font-semibold text-gray-900">
-                    {new Date(selectedInvoice.dueDate).toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-1">Categoria</p>
-                  <p className="text-base font-semibold text-gray-900">
-                    {defaultCategories.find(c => c.id === selectedInvoice.category)?.name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-1">Data de Emissão</p>
-                  <p className="text-base text-gray-900">
-                    {new Date(selectedInvoice.issueDate).toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-1">Data do Serviço</p>
-                  <p className="text-base text-gray-900">
-                    {new Date(selectedInvoice.serviceDate).toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-6">
-                <p className="text-sm font-medium text-gray-500 mb-2">Descrição</p>
-                <p className="text-base text-gray-900 bg-white p-3 rounded-lg border">{selectedInvoice.description}</p>
-              </div>
-            </div>
-
-            {/* Fluxo de Aprovação */}
-            <WorkflowTracker invoice={selectedInvoice} />
-
-            <div className="mt-8 flex justify-end space-x-4">
-              <Button variant="secondary" onClick={closeModal}>
-                Fechar
-              </Button>
-              <Button variant="primary">
-                📄 Ver Documentos
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </MainLayout>
+      <InvoicesList />
+    </div>
   );
 }

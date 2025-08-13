@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Transaction, TransactionFormData, FinancialSummary } from '@/types';
 import { sampleTransactions } from '@/data/mockData';
+import { nextTransactionId } from '@/lib/id';
 
 export function useTransactions() {
   const [transactions, setTransactions] = useState<Transaction[]>(sampleTransactions);
@@ -12,9 +13,9 @@ export function useTransactions() {
   const addTransaction = (transactionData: TransactionFormData) => {
     const newTransaction: Transaction = {
       ...transactionData,
-      id: `trans-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      id: nextTransactionId(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     setTransactions(prev => [newTransaction, ...prev]);
@@ -25,7 +26,7 @@ export function useTransactions() {
     setTransactions(prev => 
       prev.map(transaction => 
         transaction.id === id 
-          ? { ...transaction, ...updates, updatedAt: new Date().toISOString() }
+          ? { ...transaction, ...updates, updatedAt: new Date() }
           : transaction
       )
     );
@@ -45,15 +46,15 @@ export function useTransactions() {
     valorAprovado: number;
     valorPago: number;
   }): FinancialSummary => {
-    const confirmedTransactions = transactions.filter(t => t.status === 'confirmada');
+    const confirmedTransactions = transactions.filter(t => t.status === 'CONFIRMADA');
     
     const totalReceitas = confirmedTransactions
-      .filter(t => t.type === 'receita')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === 'RECEITA')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const totalDespesas = confirmedTransactions
-      .filter(t => t.type === 'despesa')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === 'DESPESA')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const saldo = totalReceitas - totalDespesas;
 
@@ -88,13 +89,13 @@ export function useTransactions() {
   };
 
   // Filtrar transações por tipo
-  const getTransactionsByType = (type: 'receita' | 'despesa') => {
+  const getTransactionsByType = (type: 'RECEITA' | 'DESPESA'|'RECEITA' | 'DESPESA') => {
     return transactions.filter(transaction => transaction.type === type);
   };
 
   // Filtrar transações por categoria
   const getTransactionsByCategory = (categoryId: string) => {
-    return transactions.filter(transaction => transaction.category === categoryId);
+    return transactions.filter(transaction => transaction.categoryId === categoryId);
   };
 
   // Obter transações por mês
@@ -108,12 +109,12 @@ export function useTransactions() {
   // Obter resumo de transações
   const getTransactionsSummary = () => {
     const totalReceitas = transactions
-      .filter(t => t.type === 'receita')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === 'RECEITA')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const totalDespesas = transactions
-      .filter(t => t.type === 'despesa')
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === 'DESPESA')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const saldoAtual = totalReceitas - totalDespesas;
     
