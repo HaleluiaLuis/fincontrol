@@ -113,21 +113,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Retornar dados do usuário (sem senha)
+    // Gerar token JWT simulado para desenvolvimento
+    const token = `mock-jwt-${Date.now()}-${user.id}`;
+    const refreshToken = `mock-refresh-${Date.now()}-${user.id}`;
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
+    // Retornar dados no formato esperado pelo serviço
     const userData = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      department: user.department,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      permissions: [
+        'read:dashboard',
+        'write:transactions',
+        'read:reports',
+        user.role === 'ADMIN' ? 'admin:all' : 'user:basic'
+      ].filter(Boolean),
+      profile: {
+        avatar: undefined,
+        phone: undefined,
+        department: user.department,
+        position: user.role
+      }
     };
 
     return NextResponse.json({
       success: true,
-      user: userData,
+      data: {
+        user: userData,
+        token: token,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt
+      },
       message: 'Login realizado com sucesso'
     });
 

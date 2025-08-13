@@ -61,14 +61,16 @@ export class ApiService {
         },
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new ApiError({
-          message: response.statusText,
-          status: response.status,
-        });
+        return {
+          success: false,
+          error: data.error || response.statusText,
+          data: undefined as T
+        };
       }
 
-      const data = await response.json();
       return data;
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, error);
