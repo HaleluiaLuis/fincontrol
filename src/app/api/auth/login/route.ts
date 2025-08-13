@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Role } from '@/types';
+import { getPermissionsForRole } from '@/lib/permissions';
 
 interface LoginRequest {
   email: string;
@@ -118,18 +119,13 @@ export async function POST(request: NextRequest) {
     const refreshToken = `mock-refresh-${Date.now()}-${user.id}`;
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
-    // Retornar dados no formato esperado pelo serviço
+        // Retornar dados no formato esperado pelo serviço
     const userData = {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      permissions: [
-        'read:dashboard',
-        'write:transactions',
-        'read:reports',
-        user.role === 'ADMIN' ? 'admin:all' : 'user:basic'
-      ].filter(Boolean),
+      permissions: getPermissionsForRole(user.role),
       profile: {
         avatar: undefined,
         phone: undefined,
