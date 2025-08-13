@@ -1,31 +1,24 @@
-'use client';
+import React from 'react';
 
-import { Suspense } from 'react';
-import LoginForm from './LoginForm';
+interface LoginPageWrapperProps { children: React.ReactNode }
 
-function LoginLoading() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="animate-pulse">
-          <div className="mx-auto h-12 w-12 bg-gray-200 rounded-full"></div>
-          <div className="mt-6 h-8 bg-gray-200 rounded mx-auto w-48"></div>
-          <div className="mt-2 h-4 bg-gray-200 rounded mx-auto w-32"></div>
-          <div className="mt-8 space-y-4">
-            <div className="h-10 bg-gray-200 rounded"></div>
-            <div className="h-10 bg-gray-200 rounded"></div>
-            <div className="h-10 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+export function LoginPageWrapper({ children }: LoginPageWrapperProps){
+	return (
+		<div className="min-h-screen flex">
+			<div className="hidden lg:flex flex-col justify-between w-1/2 p-12 bg-gradient-to-br from-indigo-600 to-indigo-800 text-white relative overflow-hidden">
+				<div className="absolute inset-0 opacity-10 pointer-events-none" style={{backgroundImage:'radial-gradient(circle at 25% 25%, #fff 2%, transparent 60%)'}} />
+				<header className="relative z-10">
+					<h1 className="text-3xl font-bold tracking-tight">FinControl</h1>
+					<p className="mt-2 text-indigo-100 max-w-md text-sm leading-relaxed">Gestão integrada de faturas, fluxos de aprovação e relatórios financeiros para o Instituto Superior Politécnico do Bié.</p>
+				</header>
+				<footer className="relative z-10 text-xs text-indigo-200">
+					© {new Date().getFullYear()} FinControl • MVP
+				</footer>
+			</div>
+			<div className="flex-1 flex items-center justify-center p-6 md:p-10 bg-[var(--surface)]">
+				<div className="w-full max-w-sm">{children}</div>
+			</div>
+		</div>
+	);
 }
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<LoginLoading />}>
-      <LoginForm />
-    </Suspense>
-  );
-}

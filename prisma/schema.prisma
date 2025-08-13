@@ -22,15 +22,24 @@ enum UserRole {
 }
 
 enum RequestStatus {
-  PENDENTE                 // Solicitação criada
-  EM_VALIDACAO            // Gabinete Contratação analisando
-  PENDENTE_PRESIDENTE     // Aguardando autorização presidencial
-  AUTORIZADA              // Presidente autorizou
-  REJEITADA               // Rejeitada em qualquer etapa
-  REGISTRADA              // Gabinete Apoio registrou fatura
-  PENDENTE_PAGAMENTO      // Enviada para Finanças
-  PAGA                    // Pagamento efetuado
-  CANCELADA               // Cancelada
+  /// Solicitação criada
+  PENDENTE
+  /// Gabinete Contratação analisando
+  EM_VALIDACAO
+  /// Aguardando autorização presidencial
+  PENDENTE_PRESIDENTE
+  /// Presidente autorizou
+  AUTORIZADA
+  /// Rejeitada em qualquer etapa
+  REJEITADA
+  /// Gabinete Apoio registrou fatura
+  REGISTRADA
+  /// Enviada para Finanças
+  PENDENTE_PAGAMENTO
+  /// Pagamento efetuado
+  PAGA
+  /// Cancelada
+  CANCELADA
 }
 
 enum WorkflowStep {
@@ -94,13 +103,14 @@ model User {
   updatedAt   DateTime @updatedAt
 
   // Relacionamentos
-  createdRequests     PaymentRequest[] @relation("RequestCreatedBy")
-  approvals           Approval[]
+  createdRequests    PaymentRequest[] @relation("RequestCreatedBy")
+  approvals          Approval[]
   createdTransactions Transaction[]
-  registeredInvoices  Invoice[]        @relation("InvoiceRegisteredBy")
-  processedPayments   Payment[]        @relation("PaymentProcessedBy")
-  auditLogs           AuditLog[]
-  notifications       Notification[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  registeredInvoices Invoice[]
+  processedPayments  Payment[]
+  sessions           Session[]
 
   @@map("users")
 }
@@ -200,6 +210,10 @@ model Invoice {
   categoryId      String
   description     String
   amount          Decimal       @db.Decimal(12,2)
+
+  // Workflow de aprovação da fatura
+  status          RequestStatus @default(PENDENTE)
+  currentStep     WorkflowStep  @default(GABINETE_CONTRATACAO)
   
   // Datas
   issueDate       DateTime      // Data de emissão da fatura
@@ -219,8 +233,9 @@ model Invoice {
   // Relacionamentos
   supplier        Supplier      @relation(fields: [supplierId], references: [id])
   category        Category      @relation(fields: [categoryId], references: [id])
-  registeredBy    User          @relation("InvoiceRegisteredBy", fields: [registeredById], references: [id])
+  registeredBy    User          @relation(fields: [registeredById], references: [id])
   payment         Payment?      // Uma fatura pode ter um pagamento
+  approvals       Approval[]    // Histórico de aprovações da fatura
 
   @@map("invoices")
 }
@@ -240,7 +255,7 @@ model Payment {
   
   // Processamento
   processedById   String
-  processedBy     User          @relation("PaymentProcessedBy", fields: [processedById], references: [id])
+  processedBy     User          @relation(fields: [processedById], references: [id])
   
   // Metadados
   bankAccount     String?       // Conta de origem
@@ -248,29 +263,34 @@ model Payment {
   
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  
 
   @@map("payments")
 }
 
 model Approval {
-  id              String         @id @default(cuid())
-  
-  // Vinculação
-  paymentRequestId String
-  paymentRequest   PaymentRequest @relation(fields: [paymentRequestId], references: [id])
-  
-  // Dados da aprovação
-  step            WorkflowStep
-  action          ApprovalAction
-  userId          String
-  user            User           @relation(fields: [userId], references: [id])
-  
-  // Detalhes
-  comments        String?
-  attachments     Json?          // Documentos adicionais se necessário
-  
-  timestamp       DateTime       @default(now())
+  id               String         @id @default(cuid())
 
+  // Vinculação flexível
+  paymentRequestId String?
+  paymentRequest   PaymentRequest? @relation(fields: [paymentRequestId], references: [id])
+  invoiceId        String?
+  invoice          Invoice?        @relation(fields: [invoiceId], references: [id])
+
+  // Dados da aprovação
+  step             WorkflowStep
+  action           ApprovalAction
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+
+  // Detalhes
+  comments         String?
+  attachments      Json?
+
+  timestamp        DateTime       @default(now())
+
+  @@index([invoiceId])
+  @@index([paymentRequestId])
   @@map("approvals")
 }
 
@@ -293,6 +313,7 @@ model Transaction {
   createdBy   User?             @relation(fields: [createdById], references: [id])
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  
 
   @@map("transactions")
 }
@@ -314,27 +335,39 @@ model Notification {
 }
 
 model AuditLog {
-  id        String    @id @default(cuid())
-  
-  // Ação realizada
-  action    String    // 'CREATE', 'UPDATE', 'DELETE', 'APPROVE', etc.
-  entity    String    // 'PaymentRequest', 'Invoice', etc.
-  entityId  String    // ID do registro afetado
-  
-  // Usuário (opcional - pode ser sistema)
-  userId    String?
-  user      User?     @relation(fields: [userId], references: [id])
-  
-  // Metadados
-  oldData   Json?     // Estado anterior
-  newData   Json?     // Novo estado
-  metadata  Json?     // Informações adicionais
-  
-  createdAt DateTime  @default(now())
-  
-  // Relacionamentos para facilitar queries (usando IDs diferentes ou removendo alguns)
-  // Nota: Como entityId pode referenciar diferentes entidades, mantemos apenas alguns relacionamentos específicos
-  // para evitar conflitos de constraint. Para queries complexas, usar entityId diretamente.
+  id        String   @id @default(cuid())
 
+  // Ação realizada
+  action    String   // 'CREATE','UPDATE','DELETE','APPROVE', etc.
+  entity    String   // Nome lógico da entidade: 'PaymentRequest','Invoice', etc.
+  entityId  String   // ID do registro afetado
+
+  // Usuário (opcional)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  // Metadados
+  oldData   Json?
+  newData   Json?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  // Índice para busca rápida por entidade
+  @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+// Sessões simples (login/passwordless por email)
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields:[userId], references:[id])
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@map("sessions")
 }

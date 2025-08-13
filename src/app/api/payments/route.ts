@@ -1,94 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
-  // Verificar autenticação
-  const user = getAuthenticatedUser(request);
-  if (!user) {
-    return createUnauthorizedResponse();
-  }
-
-  try {
-    const payments = await prisma.payment.findMany({
-      include: {
-        invoice: {
-          include: {
-            supplier: true,
-            category: true,
-          }
-        },
-        processedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          }
-        }
-      },
-      orderBy: {
-        paidAt: 'desc'
-      }
-    })
-
-    return NextResponse.json({ payments })
-  } catch (error) {
-    console.error('Error fetching payments:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch payments' },
-      { status: 500 }
-    )
-  }
+export async function GET() {
+	try {
+		const data = await prisma.payment.findMany({
+			orderBy: { createdAt: 'desc' },
+			include: { invoice: { include: { supplier: true } }, processedBy: true }
+		});
+		return NextResponse.json({ ok:true, data });
+	} catch {
+		return NextResponse.json({ ok:false, error:'Erro ao listar pagamentos' }, { status:500 });
+	}
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const {
-      invoiceId,
-      amount,
-      paidAt,
-      method,
-      reference,
-      bankAccount,
-      notes,
-      processedById
-    } = body
-
-    const payment = await prisma.payment.create({
-      data: {
-        invoiceId,
-        amount,
-        paidAt: new Date(paidAt),
-        method: method || 'TRANSFERENCIA_BANCARIA',
-        reference: reference || null,
-        bankAccount: bankAccount || null,
-        notes: notes || null,
-        processedById,
-      },
-      include: {
-        invoice: {
-          include: {
-            supplier: true,
-            category: true,
-          }
-        },
-        processedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          }
-        }
-      }
-    })
-
-    return NextResponse.json({ payment }, { status: 201 })
-  } catch (error) {
-    console.error('Error creating payment:', error)
-    return NextResponse.json(
-      { error: 'Failed to create payment' },
-      { status: 500 }
-    )
-  }
+export async function POST(request: Request){
+	try {
+		const body = await request.json();
+		const { invoiceId, amount, paidAt, method, processedById } = body;
+		if(!invoiceId || !amount || !paidAt || !processedById) {
+			return NextResponse.json({ ok:false, error:'Campos obrigatórios: invoiceId, amount, paidAt, processedById' }, { status:400 });
+		}
+		const created = await prisma.payment.create({
+			data: {
+				invoiceId,
+				amount,
+				paidAt: new Date(paidAt),
+				method: method || 'TRANSFERENCIA_BANCARIA',
+				processedById,
+				reference: body.reference || null,
+				bankAccount: body.bankAccount || null,
+				notes: body.notes || null
+			},
+			include: { invoice: { include: { supplier: true } }, processedBy: true }
+		});
+		return NextResponse.json({ ok:true, data: created }, { status:201 });
+	} catch {
+		return NextResponse.json({ ok:false, error:'Erro ao criar pagamento' }, { status:500 });
+	}
 }

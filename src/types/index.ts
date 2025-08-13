@@ -1,102 +1,99 @@
 // Tipos de dados para o sistema de controle financeiro
-import { Prisma, $Enums } from '@prisma/client'
 
-// Exportar tipos do Prisma
-export type User = Prisma.UserGetPayload<Record<string, never>>
-export type Supplier = Prisma.SupplierGetPayload<Record<string, never>>
-export type Category = Prisma.CategoryGetPayload<Record<string, never>>
-export type Transaction = Prisma.TransactionGetPayload<Record<string, never>>
-export type PaymentRequest = Prisma.PaymentRequestGetPayload<Record<string, never>>
-export type Invoice = Prisma.InvoiceGetPayload<Record<string, never>>
-export type Approval = Prisma.ApprovalGetPayload<Record<string, never>>
-export type Payment = Prisma.PaymentGetPayload<Record<string, never>>
-export type Notification = Prisma.NotificationGetPayload<Record<string, never>>
-export type AuditLog = Prisma.AuditLogGetPayload<Record<string, never>>
-
-// Enums do Prisma
-export type Role = $Enums.UserRole
-export type RequestStatus = $Enums.RequestStatus
-export type WorkflowStep = $Enums.WorkflowStep
-export type TransactionStatus = $Enums.TransactionStatus
-export type TransactionType = $Enums.TransactionType
-export type PaymentMethod = $Enums.PaymentMethod
-export type ApprovalAction = $Enums.ApprovalAction
-export type SupplierStatus = $Enums.SupplierStatus
-export type SupplierType = $Enums.SupplierType
-
-// Legacy compatibility
-export type InvoiceStatus = RequestStatus
-
-// Tipos com relacionamentos
-export type InvoiceWithDetails = Prisma.InvoiceGetPayload<{
-  include: {
-    supplier: true
-    category: true
-    createdBy: true
-    registeredBy: true
-    approvals: {
-      include: {
-        user: true
-      }
-    }
-    payment: true
-  }
-}>
-
-export type PaymentRequestWithDetails = Prisma.PaymentRequestGetPayload<{
-  include: {
-    supplier: true
-    category: true
-    createdBy: true
-    approvals: {
-      include: {
-        user: true
-      }
-    }
-    invoice: true
-  }
-}>
-
-export type TransactionWithDetails = Prisma.TransactionGetPayload<{
-  include: {
-    category: true
-    supplier: true
-    createdBy: true
-  }
-}>
-
-// Tipos para formulários (novos)
-export interface CreateInvoiceData {
-  invoiceNumber: string
-  supplierId: string
-  description: string
-  amount: number
-  issueDate: string
-  dueDate: string
-  serviceDate: string
-  categoryId: string
-  attachments: string[]
-  createdById: string
+export interface Transaction {
+  id: string;
+  type: 'receita' | 'despesa';
+  description: string;
+  amount: number;
+  category: string; // armazenamos apenas id da categoria
+  date: string; // ISO date
+  status: 'pendente' | 'confirmada' | 'cancelada';
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface CreatePaymentRequestData {
-  supplierId: string
-  description: string
-  amount: number
-  requestDate: string
-  categoryId: string
-  attachments: string[]
-  createdById: string
+export interface Category {
+  id: string;
+  name: string;
+  type: 'receita' | 'despesa';
+  color: string;
+  description?: string;
 }
 
-export interface CreateTransactionData {
-  type: TransactionType
-  description: string
-  amount: number
-  categoryId: string
-  supplierId?: string
-  date: string
-  createdById: string
+export interface Supplier {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  taxId: string; // NIF ou equivalente
+  bankAccount?: string;
+  status: 'ativo' | 'inativo' | 'pendente';
+  contact: {
+    email: string;
+    phone: string;
+    address: string;
+  };
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  supplierId: string;
+  description: string;
+  amount: number;
+  issueDate: string;
+  dueDate: string;
+  serviceDate: string;
+  category: string;
+  attachments: string[]; // URLs dos documentos
+  
+  // Fluxo de aprovação
+  status: InvoiceStatus;
+  currentStep: WorkflowStep;
+  approvalHistory: ApprovalStep[];
+  
+  // Controle
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string; // ID do usuário que criou
+}
+
+export type InvoiceStatus = 
+  | 'pendente_contratacao'     // Aguardando verificação do Gabinete de Contratação
+  | 'pendente_presidente'      // Aguardando autorização do Presidente
+  | 'rejeitada'               // Rejeitada em qualquer etapa
+  | 'aprovada_registro'       // Aprovada, aguardando registro no Gabinete de Apoio
+  | 'registrada'              // Registrada no Gabinete de Apoio
+  | 'pendente_pagamento'      // Enviada para Finanças
+  | 'paga'                    // Pagamento efetuado
+  | 'cancelada';              // Cancelada
+
+export type WorkflowStep = 
+  | 'gabinete_contratacao'
+  | 'presidente'
+  | 'gabinete_apoio'
+  | 'financas'
+  | 'concluido';
+
+export interface ApprovalStep {
+  id: string;
+  step: WorkflowStep;
+  action: 'aprovado' | 'rejeitado' | 'solicitado_correcao';
+  userId: string;
+  userName: string;
+  comments?: string;
+  timestamp: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'gabinete_contratacao' | 'presidente' | 'gabinete_apoio' | 'financas' | 'admin' | 'user' | 'viewer';
+  department?: string;
+  createdAt: string;
 }
 
 export interface FinancialSummary {

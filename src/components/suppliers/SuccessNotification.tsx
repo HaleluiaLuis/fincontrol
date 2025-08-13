@@ -1,83 +1,34 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { CheckCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+"use client";
+import React, { useEffect, useState } from 'react';
 
 interface SuccessNotificationProps {
-  onClose?: () => void;
+	show: boolean;
+	message?: string;
+	autoHideMs?: number;
+	onHide?: () => void;
 }
 
-export function SuccessNotification({ onClose }: SuccessNotificationProps) {
-  const searchParams = useSearchParams();
-  const [show, setShow] = useState(false);
-  const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    const success = searchParams.get('success');
-    if (success) {
-      switch (success) {
-        case 'created':
-          setMessage('Fornecedor criado com sucesso!');
-          break;
-        case 'updated':
-          setMessage('Fornecedor atualizado com sucesso!');
-          break;
-        case 'deleted':
-          setMessage('Fornecedor excluído com sucesso!');
-          break;
-        default:
-          setMessage('Operação realizada com sucesso!');
-      }
-      setShow(true);
-      
-      // Auto hide after 5 seconds
-      const timer = setTimeout(() => {
-        setShow(false);
-        onClose?.();
-        // Remove the success param from URL
-        const url = new URL(window.location.href);
-        url.searchParams.delete('success');
-        window.history.replaceState({}, '', url.toString());
-      }, 5000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams, onClose]);
-
-  const handleClose = () => {
-    setShow(false);
-    onClose?.();
-    // Remove the success param from URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete('success');
-    window.history.replaceState({}, '', url.toString());
-  };
-
-  if (!show) return null;
-
-  return (
-    <div className="fixed top-4 right-4 z-50 max-w-sm w-full">
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4 shadow-lg">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <CheckCircleIcon className="h-5 w-5 text-green-400" />
-          </div>
-          <div className="ml-3 flex-1">
-            <p className="text-sm font-medium text-green-800">
-              {message}
-            </p>
-          </div>
-          <div className="ml-4 flex-shrink-0 flex">
-            <button
-              onClick={handleClose}
-              className="inline-flex text-green-400 hover:text-green-600 focus:outline-none focus:text-green-600"
-            >
-              <XMarkIcon className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+export function SuccessNotification({ show, message='Operação realizada com sucesso.', autoHideMs=3500, onHide }: SuccessNotificationProps){
+	const [visible, setVisible] = useState(show);
+	useEffect(()=>{ setVisible(show); },[show]);
+	useEffect(()=>{
+		if(visible && autoHideMs){
+			const id = setTimeout(()=>{ setVisible(false); onHide?.(); }, autoHideMs);
+			return ()=> clearTimeout(id);
+		}
+	},[visible, autoHideMs, onHide]);
+	if(!visible) return null;
+	return (
+		<div className="fixed bottom-4 right-4 z-50 animate-fade-in">
+			<div className="surface-elevated border border-green-500/40 rounded-lg shadow-lg p-4 flex items-start gap-3 w-80">
+				<div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center text-lg">✓</div>
+				<div className="flex-1 min-w-0">
+					<p className="text-sm font-medium text-green-700 dark:text-green-300">{message}</p>
+					<p className="text-[11px] mt-1 text-green-700/70 dark:text-green-400/70">Esta mensagem será fechada automaticamente.</p>
+				</div>
+				<button onClick={()=>{ setVisible(false); onHide?.(); }} className="text-green-700/70 hover:text-green-800 dark:text-green-400/70 dark:hover:text-green-300 text-sm">✕</button>
+			</div>
+		</div>
+	);
 }
+

@@ -4,17 +4,14 @@ import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { TransactionTable } from '@/components/transactions/TransactionTable';
-import { useTransactions } from '@/hooks/useTransactions';
-import { defaultCategories } from '@/data/mockData';
+import { useTransactions } from '@/contexts/TransactionsContext';
+import { useCategories } from '@/contexts/CategoriesContext';
 import { Transaction, TransactionFormData } from '@/types';
 import { Button } from '@/components/ui/Button';
 
 export default function TransacoesPage() {
-  const { 
-    transactions, 
-    addTransaction, 
-  deleteTransaction
-  } = useTransactions();
+  const { transactions, create, update, remove } = useTransactions();
+  const { categories } = useCategories();
 
   const [showForm, setShowForm] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -22,7 +19,7 @@ export default function TransacoesPage() {
   // Resumo removido conforme solicitação – caso volte a ser necessário, recuperar getTransactionsSummary.
 
   const handleAddTransaction = (transactionData: TransactionFormData) => {
-    addTransaction(transactionData);
+    create(transactionData);
     setShowForm(false);
   };
 
@@ -31,9 +28,17 @@ export default function TransacoesPage() {
     setShowForm(true);
   };
 
+  const handleUpdateTransaction = (transactionData: TransactionFormData) => {
+    if (selectedTransaction) {
+  update(selectedTransaction.id, transactionData);
+      setSelectedTransaction(null);
+      setShowForm(false);
+    }
+  };
+
   const handleDeleteTransaction = (transactionId: string) => {
     if (confirm('Tem certeza de que deseja excluir esta transação?')) {
-      deleteTransaction(transactionId);
+  remove(transactionId);
     }
   };
 
@@ -85,7 +90,7 @@ export default function TransacoesPage() {
           <div className="flex gap-2">
             <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
               <option value="">Todas as categorias</option>
-              {defaultCategories.map(category => (
+              {categories.map(category => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                 </option>
@@ -107,8 +112,8 @@ export default function TransacoesPage() {
 
       {/* Tabela de Transações */}
       <TransactionTable
-        transactions={transactions}
-        categories={defaultCategories}
+  transactions={transactions}
+  categories={categories}
         onEdit={handleEditTransaction}
         onDelete={handleDeleteTransaction}
       />
@@ -132,7 +137,9 @@ export default function TransacoesPage() {
             </div>
 
             <TransactionForm
-              onSubmit={handleAddTransaction}
+              transaction={selectedTransaction}
+              categories={categories}
+              onSubmit={selectedTransaction ? handleUpdateTransaction : handleAddTransaction}
               onCancel={closeForm}
             />
           </div>

@@ -1,137 +1,85 @@
-'use client';
+"use client";
 
 import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { SuppliersProvider, useSuppliers } from '@/contexts/SuppliersContext';
-import { SupplierFilters } from '@/components/suppliers/SupplierFilters';
+import { Button } from '@/components/ui/Button';
+import { useEffect, useState } from 'react';
+import { Supplier } from '@/types';
+
+interface BackendSupplier { id:string; name:string; email?:string; phone?:string; address?:string; taxId:string; bankAccount?:string|null; status:string; createdAt:string }
+import { useRouter } from 'next/navigation';
+import { SupplierFilters, useSupplierFilters } from '@/components/suppliers/SupplierFilters';
 import { SupplierList } from '@/components/suppliers/SupplierList';
-import { SuccessNotification } from '@/components/suppliers/SuccessNotification';
-import { Supplier } from '@/types/supplier';
-import { PlusIcon, ChartBarIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import Link from 'next/link';
-import { Suspense } from 'react';
-
-function SupplierStats() {
-  const { getStats } = useSuppliers();
-  const stats = getStats();
-
-  const statCards = [
-    {
-      title: 'Total de Fornecedores',
-      value: stats.total,
-      icon: ChartBarIcon,
-      color: 'text-blue-600'
-    },
-    {
-      title: 'Fornecedores Ativos',
-      value: stats.active,
-      icon: ChartBarIcon,
-      color: 'text-green-600'
-    },
-    {
-      title: 'Aguardando Aprovação',
-      value: stats.pending,
-      icon: ChartBarIcon,
-      color: 'text-yellow-600'
-    },
-    {
-      title: 'Contratos Expirando',
-      value: stats.contractsExpiringSoon,
-      icon: DocumentTextIcon,
-      color: 'text-red-600'
-    }
-  ];
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-      {statCards.map((stat, index) => (
-        <div key={index} className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <stat.icon className={`h-8 w-8 ${stat.color}`} />
-            </div>
-            <div className="ml-5 w-0 flex-1">
-              <dl>
-                <dt className="text-sm font-medium text-gray-500 truncate">
-                  {stat.title}
-                </dt>
-                <dd className="text-lg font-medium text-gray-900">
-                  {stat.value}
-                </dd>
-              </dl>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SupplierPageContent() {
-  const { filteredSuppliers } = useSuppliers();
-
-  const handleEditSupplier = (supplier: Supplier) => {
-    console.log('Edit supplier:', supplier);
-    // TODO: Abrir modal de edição ou navegar para página de edição
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Notificação de sucesso */}
-      <Suspense fallback={null}>
-        <SuccessNotification />
-      </Suspense>
-
-      {/* Estatísticas */}
-      <SupplierStats />
-
-      {/* Filtros */}
-      <SupplierFilters />
-
-      {/* Header da lista */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-lg font-medium text-gray-900">
-            Fornecedores ({filteredSuppliers.length})
-          </h2>
-          <p className="text-sm text-gray-500">
-            Gerencie todos os fornecedores da instituição
-          </p>
-        </div>
-        
-        <div className="flex space-x-3">
-          <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            <DocumentTextIcon className="h-4 w-4 mr-2" />
-            Exportar
-          </button>
-          
-          <Link
-            href="/fornecedores/novo"
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Novo Fornecedor
-          </Link>
-        </div>
-      </div>
-
-      {/* Lista de fornecedores */}
-      <SupplierList onEdit={handleEditSupplier} />
-    </div>
-  );
-}
 
 export default function FornecedoresPage() {
+  const router = useRouter();
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string|null>(null);
+  const { filters, setFilters, filtered } = useSupplierFilters(suppliers);
+
+  async function loadSuppliers(){
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch('/api/suppliers', { credentials:'include' });
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error||'Falha ao carregar fornecedores');
+  const normalized: Supplier[] = (data.data||[] as BackendSupplier[]).map((s: BackendSupplier) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email || '',
+        phone: s.phone || '',
+        address: s.address || '',
+        taxId: s.taxId,
+        bankAccount: s.bankAccount || undefined,
+        status: String(s.status||'').toLowerCase() as Supplier['status'],
+        contact: { email: s.email || '', phone: s.phone || '', address: s.address || '' },
+        createdAt: s.createdAt
+      }));
+      setSuppliers(normalized);
+    } catch(e: unknown){
+      setError(e instanceof Error? e.message : 'Erro inesperado');
+    } finally { setLoading(false); }
+  }
+  useEffect(()=>{ loadSuppliers(); },[]);
+
+  // Filtro agora gerido via hook useSupplierFilters
+
+  const headerActions = (
+    <>
+      <Button
+        variant="soft"
+        size="sm"
+        iconLeft={<span className="text-base">�</span>}
+        className="!h-9 px-3 gap-1.5 font-medium"
+        onClick={loadSuppliers}
+        disabled={loading}
+      >
+        {loading? 'Atualizando...' : 'Atualizar'}
+      </Button>
+      <Button
+        variant="primary"
+        size="sm"
+        iconLeft={<span className="text-base">＋</span>}
+        className="!h-9 px-3 gap-1.5 font-medium"
+        onClick={()=>router.push('/fornecedores/novo')}
+      >
+        Novo Fornecedor
+      </Button>
+    </>
+  );
+
   return (
-    <ProtectedRoute requiredPermissions={['suppliers.read']}>
-      <SuppliersProvider>
-        <MainLayout
-          title="Fornecedores"
-          subtitle="Gestão completa de fornecedores e prestadores de serviços"
-        >
-          <SupplierPageContent />
-        </MainLayout>
-      </SuppliersProvider>
-    </ProtectedRoute>
+    <MainLayout 
+      title="Gestão de Fornecedores" 
+      subtitle="Cadastro e controle de fornecedores e prestadores de serviços"
+      actions={headerActions}
+    >
+  {/* Secção de KPIs removida conforme solicitação */}
+
+      <div className="mb-8 surface p-6 rounded-xl">
+        <SupplierFilters value={filters} onChange={setFilters} loading={loading} />
+      </div>
+      <SupplierList suppliers={filtered} loading={loading} error={error} onReload={loadSuppliers} />
+    </MainLayout>
   );
 }

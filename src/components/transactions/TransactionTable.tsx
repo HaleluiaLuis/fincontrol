@@ -67,15 +67,15 @@ export function TransactionTable({
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="chip chip-indigo">{getCategoryName(transaction.categoryId || '')}</span>
+                  <span className="chip chip-indigo">{getCategoryName(transaction.category)}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {transaction.type === 'RECEITA' && <span className="chip chip-green">Receita</span>}
-                  {transaction.type === 'DESPESA' && <span className="chip chip-red">Despesa</span>}
+                  {transaction.type === 'receita' && <span className="chip chip-green">Receita</span>}
+                  {transaction.type === 'despesa' && <span className="chip chip-red">Despesa</span>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <span className="text-sm font-semibold text-strong">
-                    {transaction.type === 'RECEITA' ? '+' : '-'} {formatCurrency(Number(transaction.amount))}
+                    {transaction.type === 'receita' ? '+' : '-'} {formatCurrency(transaction.amount)}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">

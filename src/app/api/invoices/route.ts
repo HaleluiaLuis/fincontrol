@@ -1,112 +1,69 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth'
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { invalidateDashboardCache } from '@/lib/reportCache';
 
-export async function GET(request: NextRequest) {
-  // Verificar autenticação
-  const user = getAuthenticatedUser(request);
-  if (!user) {
-    return createUnauthorizedResponse();
-  }
-
-  try {
-    const invoices = await prisma.invoice.findMany({
-      include: {
-        supplier: true,
-        category: true,
-        registeredBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          }
-        },
-        payment: true,
-        paymentRequest: {
-          include: {
-            approvals: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    role: true,
-                  }
-                }
-              },
-              orderBy: {
-                timestamp: 'desc'
-              }
-            }
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
-
-    return NextResponse.json({ invoices })
-  } catch (error) {
-    console.error('Error fetching invoices:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch invoices' },
-      { status: 500 }
-    )
-  }
+export async function GET(request: Request) {
+	try {
+		const url = new URL(request.url);
+		const page = Math.max(1, Number(url.searchParams.get('page')||'1'));
+		const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize')||'20')));
+		const status = url.searchParams.get('status');
+		const supplierId = url.searchParams.get('supplierId');
+		const search = url.searchParams.get('q');
+			const where: {
+				status?: 'PENDENTE'|'EM_VALIDACAO'|'PENDENTE_PRESIDENTE'|'AUTORIZADA'|'REGISTRADA'|'PENDENTE_PAGAMENTO'|'PAGA'|'CANCELADA'|'REJEITADA';
+				supplierId?: string;
+				description?: { contains: string; mode: 'insensitive' };
+			} = {};
+			if(status){
+				const s = status.toUpperCase();
+				if(['PENDENTE','EM_VALIDACAO','PENDENTE_PRESIDENTE','AUTORIZADA','REGISTRADA','PENDENTE_PAGAMENTO','PAGA','CANCELADA','REJEITADA'].includes(s)) where.status = s as typeof where.status;
+			}
+		if(supplierId) where.supplierId = supplierId;
+		if(search) where.description = { contains: search, mode:'insensitive' };
+		const [total, data] = await Promise.all([
+			prisma.invoice.count({ where }),
+			prisma.invoice.findMany({
+				where,
+				skip: (page-1)*pageSize,
+				take: pageSize,
+				orderBy: { createdAt: 'desc' },
+				include: { supplier: true, category: true, payment: true }
+			})
+		]);
+		return NextResponse.json({ ok:true, data, meta:{ page, pageSize, total, pages: Math.ceil(total/pageSize) } });
+		} catch {
+		return NextResponse.json({ ok:false, error:'Erro ao listar faturas' }, { status:500 });
+	}
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const {
-      invoiceNumber,
-      supplierId,
-      description,
-      amount,
-      issueDate,
-      dueDate,
-      serviceDate,
-      categoryId,
-      attachments,
-      registeredById,
-      paymentRequestId
-    } = body
-
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        supplierId,
-        description,
-        amount,
-        issueDate: new Date(issueDate),
-        dueDate: new Date(dueDate),
-        serviceDate: new Date(serviceDate),
-        categoryId,
-        attachments: attachments || null,
-        registeredById,
-        paymentRequestId: paymentRequestId || null,
-      },
-      include: {
-        supplier: true,
-        category: true,
-        registeredBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          }
-        },
-        payment: true,
-      }
-    })
-
-    return NextResponse.json({ invoice }, { status: 201 })
-  } catch (error) {
-    console.error('Error creating invoice:', error)
-    return NextResponse.json(
-      { error: 'Failed to create invoice' },
-      { status: 500 }
-    )
-  }
+export async function POST(request: Request) {
+	try {
+		const body = await request.json();
+		const { supplierId, categoryId, description, amount, issueDate, serviceDate, dueDate, registeredById, attachments } = body;
+		if(!supplierId || !categoryId || !description || !amount || !issueDate || !serviceDate || !dueDate || !registeredById) {
+			return NextResponse.json({ ok:false, error:'Campos obrigatórios incompletos' }, { status:400 });
+		}
+		const invoiceNumber = `INV-${Date.now()}`;
+		const created = await prisma.invoice.create({
+			data: {
+				invoiceNumber,
+				supplierId,
+				categoryId,
+				description,
+				amount,
+				issueDate: new Date(issueDate),
+				serviceDate: new Date(serviceDate),
+				dueDate: new Date(dueDate),
+				registeredById,
+				attachments: Array.isArray(attachments)? attachments : undefined,
+			},
+			include: { supplier: true, category: true }
+		});
+		// Invalida cache do dashboard pois métricas podem mudar
+		invalidateDashboardCache();
+		return NextResponse.json({ ok:true, data: created }, { status:201 });
+		} catch {
+		return NextResponse.json({ ok:false, error:'Erro ao criar fatura' }, { status:500 });
+	}
 }

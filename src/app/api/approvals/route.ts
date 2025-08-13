@@ -1,134 +1,77 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import type { Prisma } from '@prisma/client'
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { RequestStatus, WorkflowStep } from '@prisma/client';
+import { invalidateDashboardCache } from '@/lib/reportCache';
 
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const paymentRequestId = searchParams.get('paymentRequestId')
-    const userId = searchParams.get('userId')
-    
-    const whereClause: Prisma.ApprovalWhereInput = {}
+export async function POST(request: Request) {
+	const body = await request.json();
+	const { invoiceId, action, userId, comments } = body as { invoiceId?:string; action?:string; userId?:string; comments?:string };
+	if(!invoiceId || !action || !userId) return NextResponse.json({ ok:false, error:'invoiceId, action, userId são requeridos' }, { status:400 });
+	try {
+		// Verificar existência
+		const invoice = await prisma.invoice.findUnique({ where:{ id: invoiceId } });
+		if(!invoice) return NextResponse.json({ ok:false, error:'Fatura não encontrada' }, { status:404 });
 
-    if (paymentRequestId) {
-      whereClause.paymentRequestId = paymentRequestId
-    }
+		// Determinar próximo status e step
+		let nextStatus: RequestStatus = invoice.status as RequestStatus;
+		let nextStep: WorkflowStep = invoice.currentStep as WorkflowStep;
 
-    if (userId) {
-      whereClause.userId = userId
-    }
+		const act = action.toLowerCase();
+		if(act === 'aprovado' || act === 'aprovado_parcial') {
+			// Fluxo simplificado: GABINETE_CONTRATACAO -> PRESIDENTE -> GABINETE_APOIO -> FINANCAS
+			switch(invoice.currentStep) {
+				case 'GABINETE_CONTRATACAO':
+					nextStep = 'PRESIDENTE';
+					nextStatus = 'PENDENTE_PRESIDENTE';
+					break;
+				case 'PRESIDENTE':
+					nextStep = 'GABINETE_APOIO';
+					nextStatus = 'AUTORIZADA';
+					break;
+				case 'GABINETE_APOIO':
+					nextStep = 'FINANCAS';
+					nextStatus = 'PENDENTE_PAGAMENTO';
+					break;
+				case 'FINANCAS':
+					nextStep = 'CONCLUIDO';
+					nextStatus = 'PAGA';
+					break;
+				default:
+					break;
+			}
+		} else if(act === 'rejeitado') {
+			nextStatus = 'REJEITADA';
+			nextStep = invoice.currentStep as WorkflowStep; // permanece onde rejeitou
+		}
 
-    const approvals = await prisma.approval.findMany({
-      where: whereClause,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          }
-        },
-        paymentRequest: {
-          select: {
-            id: true,
-            description: true,
-            amount: true,
-            status: true,
-            currentStep: true,
-          }
-        }
-      },
-      orderBy: {
-        timestamp: 'desc'
-      }
-    })
+		// Cria registro de aprovação
+		const approval = await prisma.approval.create({
+			data: {
+				invoiceId,
+				step: invoice.currentStep as WorkflowStep,
+				action: act === 'rejeitado' ? 'REJEITADO' : 'APROVADO',
+				userId,
+				comments,
+			}
+		});
 
-    return NextResponse.json({ approvals })
-  } catch (error) {
-    console.error('Error fetching approvals:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch approvals' },
-      { status: 500 }
-    )
-  }
-}
+		const updated = await prisma.invoice.update({
+			where:{ id: invoiceId },
+			data: { status: nextStatus, currentStep: nextStep },
+		});
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const {
-      paymentRequestId,
-      step,
-      action,
-      userId,
-      comments,
-      attachments
-    } = body
+		await prisma.auditLog.create({ data: {
+			action: action.toUpperCase(),
+			entity: 'Invoice',
+			entityId: invoiceId,
+			userId,
+			metadata: { comments, fromStatus: invoice.status, toStatus: nextStatus, fromStep: invoice.currentStep, toStep: nextStep, approvalId: approval.id }
+		}});
 
-    // Criar a aprovação
-    const approval = await prisma.approval.create({
-      data: {
-        paymentRequestId,
-        step,
-        action,
-        userId,
-        comments: comments || null,
-        attachments: attachments || null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          }
-        }
-      }
-    })
-
-    // Atualizar o status da solicitação de pagamento baseado na aprovação
-    let newStatus: 'PENDENTE' | 'EM_VALIDACAO' | 'PENDENTE_PRESIDENTE' | 'AUTORIZADA' | 'REJEITADA' | 'REGISTRADA' | 'PENDENTE_PAGAMENTO' | 'PAGA' | 'CANCELADA' = 'PENDENTE'
-    let nextStep: 'GABINETE_CONTRATACAO' | 'PRESIDENTE' | 'GABINETE_APOIO' | 'FINANCAS' = step
-
-    if (action === 'APROVADO') {
-      switch (step) {
-        case 'GABINETE_CONTRATACAO':
-          nextStep = 'PRESIDENTE'
-          newStatus = 'PENDENTE_PRESIDENTE'
-          break
-        case 'PRESIDENTE':
-          nextStep = 'GABINETE_APOIO'
-          newStatus = 'AUTORIZADA'
-          break
-        case 'GABINETE_APOIO':
-          nextStep = 'FINANCAS'
-          newStatus = 'REGISTRADA'
-          break
-        case 'FINANCAS':
-          newStatus = 'PENDENTE_PAGAMENTO'
-          break
-      }
-    } else if (action === 'REJEITADO') {
-      newStatus = 'REJEITADA'
-    }
-
-    // Atualizar a solicitação de pagamento
-    await prisma.paymentRequest.update({
-      where: { id: paymentRequestId },
-      data: {
-        status: newStatus,
-        currentStep: nextStep,
-      }
-    })
-
-    return NextResponse.json({ approval }, { status: 201 })
-  } catch (error) {
-    console.error('Error creating approval:', error)
-    return NextResponse.json(
-      { error: 'Failed to create approval' },
-      { status: 500 }
-    )
-  }
+		// Invalida cache de dashboard (status/contagens podem mudar)
+		invalidateDashboardCache();
+		return NextResponse.json({ ok:true, data: updated });
+	} catch {
+		return NextResponse.json({ ok:false, error:'Erro ao processar aprovação' }, { status:500 });
+	}
 }

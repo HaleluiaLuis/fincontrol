@@ -1,5 +1,6 @@
 // Lista de faturas com informações detalhadas
 import { Invoice, Supplier, Category } from '@/types';
+import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 
 interface InvoiceListProps {
   invoices: Invoice[];
@@ -15,15 +16,15 @@ export function InvoiceList({
   categories, 
   onViewDetails
 }: InvoiceListProps) {
-  const formatCurrency = (value: number | string | { toString(): string }) => {
+  const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-AO', {
       style: 'currency',
       currency: 'AOA',
-    }).format(Number(value));
+    }).format(value);
   };
 
-  const formatDate = (date: Date | string) => {
-    return new Date(date).toLocaleDateString('pt-BR');
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
   const getSupplierName = (supplierId: string) => {
@@ -36,8 +37,8 @@ export function InvoiceList({
     return category?.name || 'Categoria não encontrada';
   };
 
-  const isOverdue = (date: Date | string) => {
-    return new Date(date) < new Date();
+  const isOverdue = (dueDate: string) => {
+    return new Date(dueDate) < new Date();
   };
 
   if (invoices.length === 0) {
@@ -72,6 +73,7 @@ export function InvoiceList({
       <th className="px-3 md:px-4 py-2 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide">Fornecedor</th>
       <th className="px-3 md:px-4 py-2 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide">Valor</th>
       <th className="px-3 md:px-4 py-2 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide">Venc.</th>
+      <th className="px-3 md:px-4 py-2 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
       <th className="px-3 md:px-4 py-2 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
@@ -80,7 +82,7 @@ export function InvoiceList({
               <tr key={invoice.id} className="row-zebra align-top">
                 <td className="px-3 md:px-4 py-3 align-top whitespace-normal break-words">
                   <div className="font-semibold text-gray-900 leading-tight text-[12px] md:text-[13px]">{invoice.invoiceNumber}</div>
-                  <div className="mt-1"><span className="chip chip-indigo !text-[10px] !px-2 !py-1">{getCategoryName(invoice.categoryId)}</span></div>
+                  <div className="mt-1"><span className="chip chip-indigo !text-[10px] !px-2 !py-1">{getCategoryName(invoice.category)}</span></div>
                 </td>
                 <td className="px-3 md:px-4 py-3 align-top whitespace-normal break-words text-[12px] md:text-[13px] text-gray-800">
                   {getSupplierName(invoice.supplierId)}
@@ -95,6 +97,9 @@ export function InvoiceList({
                       <span className="inline-block chip chip-red !text-[9px] !px-2 !py-0.5">Vencida</span>
                     )}
                   </div>
+                </td>
+                <td className="px-3 md:px-4 py-3 align-top whitespace-normal">
+                  <InvoiceStatusBadge status={invoice.status} className="!px-3 !py-1.5 !text-[10px] block" />
                 </td>
                 <td className="px-3 md:px-4 py-3 align-top whitespace-nowrap text-[11px]">
                   <button

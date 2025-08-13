@@ -1,30 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { FinancialSummaryCard } from '@/components/dashboard/FinancialSummaryCard';
 import { TransactionForm } from '@/components/transactions/TransactionForm';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
-import { RoleBasedDashboard } from '@/components/dashboard/RoleBasedDashboard';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { useTransactions } from '@/hooks/useTransactions';
-import { useInvoices } from '@/hooks/useInvoices';
-import { defaultCategories } from '@/data/mockData';
+import { useTransactions } from '@/contexts/TransactionsContext';
+import { useInvoices } from '@/contexts/InvoicesContext';
+import { useCategories } from '@/contexts/CategoriesContext';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 
 export default function Home() {
-  const { 
-    transactions, 
-    addTransaction, 
-    getFinancialSummary 
-  } = useTransactions();
-
-  const { getInvoicesSummary } = useInvoices();
+  const { transactions, create, summary } = useTransactions();
+  const { invoices } = useInvoices();
+  const { categories } = useCategories();
 
   const [showForm, setShowForm] = useState(false);
-  const invoicesSummary = getInvoicesSummary();
-  const financialSummary = getFinancialSummary(invoicesSummary);
+  const invoicesSummary = (()=>{
+    const totalPendentes = invoices.filter(i=> ['pendente_contratacao','pendente_presidente','aprovada_registro','registrada','pendente_pagamento'].includes(i.status)).length;
+    const totalAprovadas = invoices.filter(i=> ['registrada','pendente_pagamento'].includes(i.status)).length;
+    const totalPagas = invoices.filter(i=> i.status==='paga').length;
+    const valorPendente = invoices.filter(i=> ['pendente_contratacao','pendente_presidente','aprovada_registro'].includes(i.status)).reduce((s,i)=>s+i.amount,0);
+    const valorAprovado = invoices.filter(i=> ['registrada','pendente_pagamento'].includes(i.status)).reduce((s,i)=>s+i.amount,0);
+    const valorPago = invoices.filter(i=> i.status==='paga').reduce((s,i)=>s+i.amount,0);
+    return { totalPendentes, totalAprovadas, totalPagas, valorPendente, valorAprovado, valorPago };
+  })();
+  const financialSummary = { ...summary, periodo:{ inicio:'', fim:'' }, faturas: invoicesSummary };
 
   const headerActions = (
     <>
@@ -53,20 +55,15 @@ export default function Home() {
   // Secção de KPIs removida conforme solicitação
 
   return (
-    <ProtectedRoute>
-      <MainLayout
-        title="Dashboard Financeiro"
-        subtitle="Visão geral do controle de custos do Instituto Superior Politécnico do Bie"
-        actions={headerActions}
-      >
+    <Suspense fallback={<div className="p-8 text-sm text-text-soft">Carregando dashboard...</div>}>
+    <MainLayout
+      title="Dashboard Financeiro"
+      subtitle="Visão geral do controle de custos do Instituto Superior Politécnico do Bie"
+      actions={headerActions}
+    >
   {/* Secção de KPIs removida */}
 
       <FinancialSummaryCard summary={financialSummary} />
-
-      {/* Dashboard baseado em perfil/role */}
-      <section className="mb-8">
-        <RoleBasedDashboard />
-      </section>
 
       {/* Resumo de Faturas (versão compacta) */}
       <section className="surface p-6 rounded-xl mb-8">
@@ -109,21 +106,23 @@ export default function Home() {
 
       {showForm && (
         <section className="mb-6">
-                    <TransactionForm
-            onSubmit={(data) => {
-              addTransaction(data);
+          <TransactionForm
+            onSubmit={(transactionData) => {
+              create({ ...transactionData });
+              setShowForm(false);
             }}
-            onCancel={() => {}}
+            onCancel={() => setShowForm(false)}
+            categories={categories}
           />
         </section>
       )}
 
       <RecentTransactions
         transactions={transactions}
-        categories={defaultCategories}
+        categories={categories}
         limit={8}
       />
-    </MainLayout>
-    </ProtectedRoute>
+  </MainLayout>
+  </Suspense>
   );
 }

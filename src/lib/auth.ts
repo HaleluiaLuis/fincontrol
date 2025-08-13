@@ -1,48 +1,43 @@
-import { NextRequest } from 'next/server';
+// Utilidades básicas de autenticação mock + extensível a Prisma
+import { cookies } from 'next/headers';
 
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
+export interface AuthUser {
+	id: string;
+	name: string;
+	email: string;
+	role: string; // manter flexível (string) para mapear com enum Prisma posteriormente
 }
 
-export function getAuthenticatedUser(request: NextRequest): AuthenticatedUser | null {
-  try {
-    // Verificar se há token no header Authorization
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
+const COOKIE_KEY = 'fc_session';
 
-    const token = authHeader.substring(7);
-    
-    // Para o mock, vamos apenas verificar se o token não está vazio
-    // Em uma implementação real, você decodificaria e verificaria o JWT
-    if (token && token.length > 10) {
-      // Mock do usuário - em uma implementação real, decodificaria do token
-      return {
-        id: '1',
-        email: 'admin@ispb.edu',
-        name: 'Administrador Sistema',
-        role: 'ADMIN'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Erro ao verificar autenticação:', error);
-    return null;
-  }
+export function getAuthUser(): AuthUser | null {
+	// MVP: user em cookie JSON; em produção usar JWT ou sessão server-side
+			try {
+				const jarUnknown = cookies() as unknown;
+				let raw: string | undefined;
+				if(jarUnknown && typeof (jarUnknown as { get?: (k:string)=>{ value?:string } }).get === 'function') {
+					raw = (jarUnknown as { get: (k:string)=>{ value?:string } }).get(COOKIE_KEY)?.value;
+				}
+				if(!raw) return null;
+				return JSON.parse(raw) as AuthUser;
+			} catch { return null; }
 }
 
-export function createUnauthorizedResponse() {
-  return Response.json(
-    { 
-      success: false, 
-      error: 'Token de autenticação não fornecido ou inválido',
-      message: 'Acesso não autorizado' 
-    },
-    { status: 401 }
-  );
+export function isAuthenticated(): boolean { return !!getAuthUser(); }
+
+export function hasRole(role: string | string[]): boolean {
+	const user = getAuthUser();
+	if(!user) return false;
+	const roles = Array.isArray(role)? role : [role];
+	return roles.includes(user.role);
 }
+
+export interface RequireAuthOptions { roles?: string[]; }
+
+export function requireAuth(opts: RequireAuthOptions = {}): AuthUser {
+	const user = getAuthUser();
+	if(!user) throw new Error('Não autenticado');
+	if(opts.roles && opts.roles.length>0 && !opts.roles.includes(user.role)) throw new Error('Não autorizado');
+	return user;
+}
+

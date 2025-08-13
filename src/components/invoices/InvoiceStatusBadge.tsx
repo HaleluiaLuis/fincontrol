@@ -9,23 +9,21 @@ interface InvoiceStatusBadgeProps {
 export function InvoiceStatusBadge({ status, className = '' }: InvoiceStatusBadgeProps) {
   const getStatusConfig = (status: InvoiceStatus) => {
     switch (status) {
-      case 'PENDENTE':
-        return { label: 'Pendente', chip: 'chip-amber', icon: '📋' };
-      case 'EM_VALIDACAO':
-        return { label: 'Em Validação', chip: 'chip-amber', icon: '�' };
-      case 'PENDENTE_PRESIDENTE':
+      case 'pendente_contratacao':
+        return { label: 'Pendente Contratação', chip: 'chip-amber', icon: '📋' };
+      case 'pendente_presidente':
         return { label: 'Pendente Presidente', chip: 'chip-amber', icon: '👔' };
-      case 'AUTORIZADA':
-        return { label: 'Autorizada', chip: 'chip-indigo', icon: '✅' };
-      case 'REJEITADA':
+      case 'rejeitada':
         return { label: 'Rejeitada', chip: 'chip-red', icon: '❌' };
-      case 'REGISTRADA':
+      case 'aprovada_registro':
+        return { label: 'Aprovada - Aguarda Registro', chip: 'chip-indigo', icon: '📝' };
+      case 'registrada':
         return { label: 'Registrada', chip: 'chip-blue', icon: '📁' };
-      case 'PENDENTE_PAGAMENTO':
+      case 'pendente_pagamento':
         return { label: 'Pendente Pagamento', chip: 'chip-amber', icon: '💰' };
-      case 'PAGA':
+      case 'paga':
         return { label: 'Paga', chip: 'chip-green', icon: '✅' };
-      case 'CANCELADA':
+      case 'cancelada':
         return { label: 'Cancelada', chip: 'chip-red', icon: '🚫' };
       default:
         return { label: 'Status Desconhecido', chip: 'chip-indigo', icon: '❓' };

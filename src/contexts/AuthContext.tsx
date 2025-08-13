@@ -1,127 +1,70 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authService, type User, type AuthCredentials } from '@/services';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+
+// Caminhos públicos (sincronizar com middleware se alterar)
+const PUBLIC_PATHS = ['/login'];
+const isPublic = (p:string) => PUBLIC_PATHS.includes(p);
+import { api } from '@/lib/api';
+
+interface UserSession { id:string; name:string; email:string; role:string; department?:string | null }
 
 interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (credentials: AuthCredentials) => Promise<void>;
+  user: UserSession | null;
+  login: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
-  hasPermission: (permission: string) => boolean;
-  hasRole: (role: string) => boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<UserSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+  const router = useRouter();
 
-  useEffect(() => {
-    // Verificar se o usuário já está autenticado ao carregar a página
-    const initializeAuth = async () => {
-      try {
-        const currentUser = authService.getCurrentUser();
-        if (currentUser && authService.isAuthenticated()) {
-          // Verificar se o token ainda é válido
-          const response = await authService.verifyToken();
-          if (response.success && response.data?.valid) {
-            setUser(currentUser);
-          } else {
-            // Token inválido, limpar dados
-            await authService.logout();
-            setUser(null);
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao inicializar autenticação:', error);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    initializeAuth();
+  const verify = useCallback(async () => {
+    const res = await api<{ id:string; name:string; email:string; role:string; department?:string }>("/api/auth/verify");
+    if(res.ok && res.data){ setUser(res.data); }
+    setIsLoading(false);
+  },[]);
 
-    // Iniciar timer de refresh de token
-    authService.startTokenRefreshTimer();
-  }, []);
+  useEffect(()=>{ verify(); }, [verify]);
 
-  const login = async (credentials: AuthCredentials) => {
-    setIsLoading(true);
-    try {
-      const response = await authService.login(credentials);
-      if (response.success && response.data) {
-        setUser(response.data.user);
-      } else {
-        throw new Error(response.error || 'Erro ao fazer login');
-      }
-    } finally {
-      setIsLoading(false);
+  const login: AuthContextType['login'] = async (email) => {
+    const res = await api<{ id:string; name:string; email:string; role:string; department?:string }>("/api/auth/login", { method:'POST', json:{ email } });
+    if(!res.ok || !res.data) return false;
+    setUser(res.data);
+    return true;
+  };
+
+  const logout: AuthContextType['logout'] = async () => {
+    await api('/api/auth/logout', { method:'POST' });
+    setUser(null);
+  };
+
+  // Redirecionar automaticamente quando não autenticado em rota protegida (após logout via navegação SPA)
+  useEffect(()=>{
+    if(!isLoading && !user && pathname && !isPublic(pathname)) {
+      // Preserva rota para eventual retorno (opcional)
+      router.replace('/login?redirect=' + encodeURIComponent(pathname));
     }
-  };
-
-  const logout = async () => {
-    setIsLoading(true);
-    try {
-      await authService.logout();
-    } finally {
-      setUser(null);
-      setIsLoading(false);
-    }
-  };
-
-  const updateProfile = async (data: Partial<User>) => {
-    if (!user) return;
-    
-    try {
-      const response = await authService.updateProfile(data);
-      if (response.success && response.data) {
-        setUser(response.data);
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
-      throw error;
-    }
-  };
-
-  const hasPermission = (permission: string): boolean => {
-    return authService.hasPermission(permission);
-  };
-
-  const hasRole = (role: string): boolean => {
-    return authService.hasRole(role);
-  };
-
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    logout,
-    updateProfile,
-    hasPermission,
-    hasRole,
-  };
+  }, [user, isLoading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error('useAuth deve ser usado dentro de AuthProvider');
   }
   return context;
-}
+};

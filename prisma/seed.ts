@@ -1,131 +1,92 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, UserRole, SupplierStatus, SupplierType, TransactionType } from '@prisma/client';
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
 
-async function main() {
-  // Criar usuários padrão do sistema
-  await prisma.user.upsert({
-    where: { email: 'admin@ispobie.ao' },
-    update: {},
-    create: {
-      name: 'Administrador Sistema',
-      email: 'admin@ispobie.ao',
-      role: 'ADMIN',
-      department: 'TI',
-    },
-  })
+async function main(){
+	console.log('> Seeding dados iniciais...');
 
-  await prisma.user.upsert({
-    where: { email: 'contratacao@ispobie.ao' },
-    update: {},
-    create: {
-      name: 'Gabinete de Contratação',
-      email: 'contratacao@ispobie.ao',
-      role: 'GABINETE_CONTRATACAO',
-      department: 'Contratação',
-    },
-  })
+	// Users básicos
+	const admin = await prisma.user.upsert({
+		where: { email: 'admin@ispobie.ao' },
+		create: {
+			name: 'Administrador',
+			email: 'admin@ispobie.ao',
+			role: UserRole.ADMIN,
+			department: 'Financeiro'
+		},
+		update: {}
+	});
 
-  await prisma.user.upsert({
-    where: { email: 'presidente@ispobie.ao' },
-    update: {},
-    create: {
-      name: 'Presidente ISPB',
-      email: 'presidente@ispobie.ao',
-      role: 'PRESIDENTE',
-      department: 'Presidência',
-    },
-  })
+	const rolesSeeds: { email:string; name:string; role: UserRole; department?:string }[] = [
+		{ email:'contratacao@ispobie.ao', name:'Gab Contratação', role: UserRole.GABINETE_CONTRATACAO, department:'Gabinete Contratação' },
+		{ email:'presidente@ispobie.ao', name:'Presidente', role: UserRole.PRESIDENTE, department:'Presidência' },
+		{ email:'apoio@ispobie.ao', name:'Gab Apoio', role: UserRole.GABINETE_APOIO, department:'Gabinete Apoio' },
+		{ email:'financas@ispobie.ao', name:'Finanças', role: UserRole.FINANCAS, department:'Finanças' },
+		{ email:'viewer@ispobie.ao', name:'Visualizador', role: UserRole.VIEWER, department:'Diretoria' },
+	];
+	for(const u of rolesSeeds){
+		await prisma.user.upsert({
+			where:{ email: u.email },
+			create:{ name: u.name, email: u.email, role: u.role, department: u.department },
+			update:{}
+		});
+	}
 
-  await prisma.user.upsert({
-    where: { email: 'apoio@ispobie.ao' },
-    update: {},
-    create: {
-      name: 'Gabinete de Apoio',
-      email: 'apoio@ispobie.ao',
-      role: 'GABINETE_APOIO',
-      department: 'Apoio Administrativo',
-    },
-  })
+	// Categories
+	const categoriesData = [
+		{ name: 'Serviços Acadêmicos', type: TransactionType.DESPESA, color:'#6366f1' },
+		{ name: 'Manutenção', type: TransactionType.DESPESA, color:'#f59e0b' },
+		{ name: 'Receitas Mensalidades', type: TransactionType.RECEITA, color:'#10b981' },
+	];
+		for(const cat of categoriesData){
+			const exists = await prisma.category.findFirst({ where:{ name: cat.name, type: cat.type } });
+			if(!exists){
+				await prisma.category.create({ data: cat });
+			}
+		}
 
-  await prisma.user.upsert({
-    where: { email: 'financas@ispobie.ao' },
-    update: {},
-    create: {
-      name: 'Departamento Finanças',
-      email: 'financas@ispobie.ao',
-      role: 'FINANCAS',
-      department: 'Finanças',
-    },
-  })
+	const categories = await prisma.category.findMany();
 
-  // Criar categorias padrão
-  const categorias = [
-    { name: 'Material de Escritório', type: 'DESPESA' as const, color: '#ef4444' },
-    { name: 'Serviços de Manutenção', type: 'DESPESA' as const, color: '#f97316' },
-    { name: 'Combustível', type: 'DESPESA' as const, color: '#eab308' },
-    { name: 'Telefone e Internet', type: 'DESPESA' as const, color: '#22c55e' },
-    { name: 'Material Didático', type: 'DESPESA' as const, color: '#3b82f6' },
-    { name: 'Serviços de Limpeza', type: 'DESPESA' as const, color: '#8b5cf6' },
-    { name: 'Propinas Estudantes', type: 'RECEITA' as const, color: '#10b981' },
-    { name: 'Taxas Administrativas', type: 'RECEITA' as const, color: '#059669' },
-    { name: 'Outras Receitas', type: 'RECEITA' as const, color: '#0d9488' },
-  ]
+	// Suppliers
+	const supplier = await prisma.supplier.upsert({
+		where:{ taxId: '5401234567' },
+		create: {
+			name:'Fornecedor Exemplo',
+			taxId:'5401234567',
+			email:'fornecedor@example.com',
+			phone:'+244 900 000 000',
+			supplierType: SupplierType.PESSOA_JURIDICA,
+			status: SupplierStatus.ATIVO
+		},
+		update:{}
+	});
 
-  for (const categoria of categorias) {
-    await prisma.category.create({
-      data: categoria,
-    })
-  }
+	// Invoice exemplo
+	const cat = categories[0];
+	const existingInv = await prisma.invoice.findFirst();
+	if(!existingInv){
+		await prisma.invoice.create({
+			data: {
+				invoiceNumber: 'INV-SEED-001',
+				supplierId: supplier.id,
+				categoryId: cat.id,
+				description: 'Serviço acadêmico inicial',
+				amount: 150000,
+				issueDate: new Date(),
+				serviceDate: new Date(),
+				dueDate: new Date(Date.now()+ 7*24*60*60*1000),
+				registeredById: admin.id
+			}
+		});
+	}
 
-  // Criar alguns fornecedores exemplo
-  const fornecedores = [
-    {
-      name: 'Papelaria Central Ltda',
-      taxId: '5401234567',
-      email: 'vendas@papelcentral.ao',
-      phone: '+244 222 123 456',
-      address: 'Rua Principal, 123, Kuito, Bié',
-      status: 'ATIVO' as const,
-    },
-    {
-      name: 'Serviços de Manutenção SA',
-      taxId: '5401234568',
-      email: 'servicos@manutencao.ao',
-      phone: '+244 222 789 012',
-      address: 'Av. da Independência, 456, Kuito, Bié',
-      status: 'ATIVO' as const,
-    },
-    {
-      name: 'Combustíveis do Bié',
-      taxId: '5401234569',
-      email: 'vendas@combbie.ao',
-      phone: '+244 222 345 678',
-      address: 'Estrada Nacional, Km 5, Kuito, Bié',
-      status: 'ATIVO' as const,
-    },
-  ]
-
-  for (const fornecedor of fornecedores) {
-    await prisma.supplier.upsert({
-      where: { taxId: fornecedor.taxId },
-      update: {},
-      create: fornecedor,
-    })
-  }
-
-  console.log('✅ Seed executado com sucesso!')
-  console.log('Usuários criados:', 5)
-  console.log('Categorias criadas:', categorias.length)
-  console.log('Fornecedores criados:', fornecedores.length)
+	console.log('> Seed concluído');
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect()
-  })
-  .catch(async (e) => {
-    console.error(e)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+main().catch(e => {
+	console.error(e);
+	process.exit(1);
+}).finally(async () => {
+	await prisma.$disconnect();
+});
+

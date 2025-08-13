@@ -1,239 +1,106 @@
-'use client';
-
-import React, { useState } from 'react';
-import { usePayments } from '@/contexts/PaymentsContext';
-import { Card } from '@/components/ui/Card';
+"use client";
+import { useEffect, useState, useMemo, Suspense } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
-import { 
-  Plus, 
-  Search, 
-  Clock, 
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  CreditCard,
-  TrendingUp,
-  Calendar
-} from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-const PaymentsPage = () => {
-  const { 
-    payments, 
-    loading, 
-    getStats
-  } = usePayments();
+interface Payment { id:string; invoiceId?:string; amount?:number; method?:string; status?:string; createdAt:string; [k:string]:unknown }
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const stats = getStats();
+export default function PagamentosPage(){
+	const router = useRouter();
+	const [data, setData] = useState<Payment[]>([]);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string|null>(null);
+	const [search, setSearch] = useState('');
+	const [statusFilter, setStatusFilter] = useState('');
 
-  // Função para filtrar pagamentos
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = !searchTerm || 
-      payment.paymentNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (payment.description && payment.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      payment.beneficiaryBankData.accountName.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesSearch;
-  }).slice(0, 10);
+	async function load(){
+		setLoading(true); setError(null);
+		try {
+			const res = await fetch('/api/payments');
+			const json = await res.json();
+			if(!res.ok) throw new Error(json.error||'Falha ao carregar pagamentos');
+			setData(json.data);
+		} catch(e: unknown){ setError(e instanceof Error? e.message : 'Erro'); }
+		finally { setLoading(false); }
+	}
+	useEffect(()=>{ load(); },[]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PROCESSADO':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'FALHADO':
-      case 'REJEITADO':
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      case 'PENDENTE':
-        return <Clock className="w-4 h-4 text-yellow-600" />;
-      case 'AGENDADO':
-        return <Calendar className="w-4 h-4 text-blue-600" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-600" />;
-    }
-  };
+	const filtered = useMemo(()=> data.filter(p => {
+		if(statusFilter && p.status!==statusFilter) return false;
+		if(search){ const q = search.toLowerCase(); return (p.id+ (p.invoiceId||'')).toLowerCase().includes(q); }
+		return true; }), [data, statusFilter, search]);
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      'PROCESSADO': 'bg-green-100 text-green-800',
-      'FALHADO': 'bg-red-100 text-red-800',
-      'REJEITADO': 'bg-red-100 text-red-800',
-      'PENDENTE': 'bg-yellow-100 text-yellow-800',
-      'AGENDADO': 'bg-blue-100 text-blue-800',
-      'CANCELADO': 'bg-gray-100 text-gray-800'
-    };
+	const headerActions = (
+		<>
+			<Button variant="soft" size="sm" onClick={load} disabled={loading}>{loading? 'Atualizando...' : 'Atualizar'}</Button>
+			<Button variant="primary" size="sm" onClick={()=>router.push('/pagamentos/novo')}>Novo Pagamento</Button>
+		</>
+	);
 
-    return (
-      <Badge className={variants[status as keyof typeof variants] || 'bg-gray-100 text-gray-800'}>
-        {getStatusIcon(status)}
-        <span className="ml-1">{status}</span>
-      </Badge>
-    );
-  };
+	return (
+		<Suspense fallback={<div className="p-8 text-sm text-text-soft">Carregando pagamentos...</div>}>
+		<MainLayout title="Pagamentos" subtitle="Registo e acompanhamento de pagamentos" actions={headerActions}>
+			<div className="mb-8 surface p-6 rounded-xl">
+				<div className="flex flex-wrap gap-4 items-center">
+					<div className="flex-1 min-w-64">
+						<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Pesquisar..." className="field" />
+					</div>
+					<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="field w-auto">
+						<option value="">Todos status</option>
+						<option value="pendente">Pendente</option>
+						<option value="processando">Processando</option>
+						<option value="pago">Pago</option>
+						<option value="falhou">Falhou</option>
+					</select>
+				</div>
+			</div>
+			<div className="surface-elevated overflow-hidden">
+				<div className="px-6 py-4 border-b border-surface-outline/30 bg-surface-alt flex items-center justify-between">
+					<div>
+						<h3 className="text-sm font-semibold">Pagamentos</h3>
+						<p className="text-xs text-text-soft">Total: {filtered.length}</p>
+					</div>
+				</div>
+				{error && <div className="p-4 text-sm text-red-600">{error}</div>}
+				<div className="overflow-x-auto">
+					<table className="min-w-full divide-y divide-surface-outline/20 text-sm">
+						<thead className="bg-surface-alt text-[11px] uppercase text-text-soft">
+							<tr>
+								<th className="px-4 py-2 text-left">ID</th>
+								<th className="px-4 py-2 text-left">Fatura</th>
+								<th className="px-4 py-2 text-left">Valor</th>
+								<th className="px-4 py-2 text-left">Método</th>
+								<th className="px-4 py-2 text-left">Status</th>
+								<th className="px-4 py-2 text-left">Criado</th>
+								<th className="px-4 py-2 text-left">Ações</th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-surface-outline/10">
+							{loading && <tr><td colSpan={7} className="px-4 py-10 text-center text-text-soft">Carregando...</td></tr>}
+							{!loading && filtered.length===0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-text-soft">Nenhum pagamento.</td></tr>}
+							{!loading && filtered.map(p => (
+								<tr key={p.id} className="row-zebra">
+									<td className="px-4 py-2 font-medium">{p.id}</td>
+									<td className="px-4 py-2">{p.invoiceId || '—'}</td>
+									<td className="px-4 py-2">{p.amount? p.amount.toLocaleString('pt-AO',{style:'currency',currency:'AOA'}) : '—'}</td>
+									<td className="px-4 py-2">{p.method || '—'}</td>
+									<td className="px-4 py-2"><StatusBadge status={p.status||'pendente'} /></td>
+									<td className="px-4 py-2">{new Date(p.createdAt).toLocaleDateString('pt-BR')}</td>
+									<td className="px-4 py-2"><button onClick={()=>router.push(`/pagamentos/${p.id}`)} className="action-btn !h-7 px-2.5 text-[11px]">Ver</button></td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</MainLayout>
+		</Suspense>
+	);
+}
 
-  const formatCurrency = (amount: number, currency: string = 'AOA') => {
-    return new Intl.NumberFormat('pt-AO', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
+function StatusBadge({ status }: { status:string }){
+	const map: Record<string,string> = { pendente:'chip chip-amber', processando:'chip chip-indigo', pago:'chip chip-green', falhou:'chip chip-red' };
+	return <span className={map[status] || 'chip chip-neutral'}>{status}</span>;
+}
 
-  const formatDate = (date: Date | undefined) => {
-    if (!date) return 'N/A';
-    return new Intl.DateTimeFormat('pt-AO', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit'
-    }).format(date);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Cabeçalho */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sistema de Pagamentos</h1>
-          <p className="text-gray-600">Controle e execução de pagamentos</p>
-        </div>
-        <Link href="/pagamentos/novo">
-          <Button className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Pagamento
-          </Button>
-        </Link>
-      </div>
-
-      {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total de Pagamentos</p>
-              <p className="text-2xl font-bold">{stats.totalPayments}</p>
-            </div>
-            <CreditCard className="h-8 w-8 text-blue-600" />
-          </div>
-          <p className="text-xs text-green-600 flex items-center mt-2">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            {formatCurrency(stats.totalAmount)}
-          </p>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Processados</p>
-              <p className="text-2xl font-bold text-green-600">{stats.processedPayments}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
-          </div>
-          <p className="text-xs text-green-600 mt-2">
-            {formatCurrency(stats.processedAmount)}
-          </p>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Pendentes</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.pendingPayments}</p>
-            </div>
-            <Clock className="h-8 w-8 text-yellow-600" />
-          </div>
-          <p className="text-xs text-yellow-600 mt-2">
-            {formatCurrency(stats.pendingAmount)}
-          </p>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Vencidos</p>
-              <p className="text-2xl font-bold text-red-600">{stats.overduePayments}</p>
-            </div>
-            <AlertCircle className="h-8 w-8 text-red-600" />
-          </div>
-          <p className="text-xs text-red-600 mt-2">
-            Requer atenção imediata
-          </p>
-        </Card>
-      </div>
-
-      {/* Pesquisa */}
-      <Card className="p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Pesquisar por número, beneficiário ou descrição..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Lista de Pagamentos */}
-      <Card className="p-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold">Pagamentos Recentes</h2>
-          <p className="text-gray-600">Últimos pagamentos registrados no sistema</p>
-        </div>
-        
-        <div className="space-y-4">
-          {filteredPayments.map((payment) => (
-            <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-              <div className="flex items-center space-x-4">
-                <div className="flex-shrink-0">
-                  {getStatusIcon(payment.status)}
-                </div>
-                <div>
-                  <Link 
-                    href={`/pagamentos/${payment.id}`}
-                    className="font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    {payment.paymentNumber}
-                  </Link>
-                  <p className="text-sm text-gray-600">{payment.beneficiaryBankData.accountName}</p>
-                  <p className="text-xs text-gray-500">{payment.description || 'Sem descrição'}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-semibold">
-                  {formatCurrency(payment.amount, payment.currency)}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {formatDate(payment.dueDate)}
-                </div>
-                <div className="mt-1">
-                  {getStatusBadge(payment.status)}
-                </div>
-              </div>
-            </div>
-          ))}
-          {filteredPayments.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              Nenhum pagamento encontrado
-            </div>
-          )}
-        </div>
-      </Card>
-    </div>
-  );
-};
-
-export default PaymentsPage;

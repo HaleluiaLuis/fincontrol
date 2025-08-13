@@ -1,171 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Role } from '@/types';
-import { getPermissionsForRole } from '@/lib/permissions';
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import crypto from 'crypto';
 
-interface LoginRequest {
-  email: string;
-  password: string;
+export const runtime = 'nodejs';
+
+const COOKIE_NAME = 'fc_session';
+const SESSION_HOURS = 8;
+
+function generateToken(){
+	return crypto.randomBytes(24).toString('base64url');
 }
 
-interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  department: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export async function POST(request: Request) {
+	const { email } = await request.json();
+	if(!email) return NextResponse.json({ ok:false, error:'Email requerido' }, { status:400 });
+	// Localiza usuário - sem criação automática (endurecido)
+	const user = await prisma.user.findUnique({ where:{ email } });
+	if(!user){
+		return NextResponse.json({ ok:false, error:'Usuário não autorizado' }, { status:401 });
+	}
+	// Revogar sessões antigas expiradas (limpeza simples)
+	await prisma.session.deleteMany({ where:{ userId: user.id, OR:[{ expiresAt: { lt: new Date() } }, { revokedAt: { not: null } }] } });
+	const token = generateToken();
+	const expiresAt = new Date(Date.now() + SESSION_HOURS*60*60*1000);
+	await prisma.session.create({ data: { userId: user.id, token, expiresAt } });
 
-// Mock de usuários para desenvolvimento
-const MOCK_USERS: AuthUser[] = [
-  {
-    id: '1',
-    name: 'Administrador Sistema',
-    email: 'admin@ispb.edu',
-    role: 'ADMIN',
-    department: 'TI',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Gabinete Contratação',
-    email: 'contratacao@ispb.edu',
-    role: 'GABINETE_CONTRATACAO',
-    department: 'Contratação',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'Presidente ISPB',
-    email: 'presidente@ispb.edu',
-    role: 'PRESIDENTE',
-    department: 'Presidência',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '4',
-    name: 'Gabinete de Apoio',
-    email: 'apoio@ispb.edu',
-    role: 'GABINETE_APOIO',
-    department: 'Apoio Administrativo',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-  {
-    id: '5',
-    name: 'Finanças ISPB',
-    email: 'financas@ispb.edu',
-    role: 'FINANCAS',
-    department: 'Finanças',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
-];
-
-export async function POST(request: NextRequest) {
-  try {
-    const body: LoginRequest = await request.json();
-    const { email, password } = body;
-
-    // Validar entrada
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email e senha são obrigatórios' },
-        { status: 400 }
-      );
-    }
-
-    // Simular delay de autenticação
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Buscar usuário
-    const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Credenciais inválidas' },
-        { status: 401 }
-      );
-    }
-
-    if (!user.isActive) {
-      return NextResponse.json(
-        { error: 'Usuário desativado' },
-        { status: 401 }
-      );
-    }
-
-    // Mock de verificação de senha
-    // Em produção, use bcrypt ou similar
-    if (password !== '123456') {
-      return NextResponse.json(
-        { error: 'Credenciais inválidas' },
-        { status: 401 }
-      );
-    }
-
-    // Gerar token JWT simulado para desenvolvimento
-    const token = `mock-jwt-${Date.now()}-${user.id}`;
-    const refreshToken = `mock-refresh-${Date.now()}-${user.id}`;
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
-
-        // Retornar dados no formato esperado pelo serviço
-    const userData = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      permissions: getPermissionsForRole(user.role),
-      profile: {
-        avatar: undefined,
-        phone: undefined,
-        department: user.department,
-        position: user.role
-      }
-    };
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        user: userData,
-        token: token,
-        refreshToken: refreshToken,
-        expiresAt: expiresAt
-      },
-      message: 'Login realizado com sucesso'
-    });
-
-  } catch (error) {
-    console.error('Erro na API de login:', error);
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    message: 'API de Autenticação FinControl',
-    endpoints: {
-      POST: 'Login do usuário',
-      credentials: {
-        admin: { email: 'admin@ispb.edu', password: '123456' },
-        contratacao: { email: 'contratacao@ispb.edu', password: '123456' },
-        presidente: { email: 'presidente@ispb.edu', password: '123456' },
-        apoio: { email: 'apoio@ispb.edu', password: '123456' },
-        financas: { email: 'financas@ispb.edu', password: '123456' }
-      }
-    }
-  });
+	// Resposta normalizada com chave 'data' para compatibilidade com wrapper api()
+	const res = NextResponse.json({ ok:true, data: { id:user.id, name:user.name, email:user.email, role:user.role, department:user.department } });
+	res.cookies.set(COOKIE_NAME, token, {
+		httpOnly: true,
+		sameSite: 'lax',
+		secure: process.env.NODE_ENV === 'production',
+		path: '/',
+		maxAge: SESSION_HOURS * 60 * 60
+	});
+	// Cookie adicional com role para RBAC no middleware (MVP; reforçar com assinatura futuramente)
+	res.cookies.set('fc_role', user.role, {
+		sameSite: 'lax',
+		secure: process.env.NODE_ENV === 'production',
+		path: '/',
+		maxAge: SESSION_HOURS * 60 * 60
+	});
+	return res;
 }
